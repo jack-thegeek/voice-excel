@@ -56,13 +56,15 @@
   <!-- 控制区 -->
   <div class="card">
     <div class="row">
+      <label>班级：</label>
+      <select id="sheet"></select>
       <label>目标列：</label>
       <select id="col"></select>
       <button id="recBtn" class="btn-rec">🎤 开始语音</button>
-      <span id="recHint" class="muted">需 Chrome / Edge 浏览器</span>
+      <span id="recHint" class="muted"></span>
     </div>
     <div class="row" style="margin-top:10px;">
-      <input id="textInput" type="text" placeholder="回车即解析并写入，例：2号 100-2-8等于几（出错才提示）" />
+      <input id="textInput" type="text" placeholder="回车即解析并写入，例：2号 100-2-8等于几" />
       <button id="parseBtn" class="btn-pri">解析</button>
     </div>
     <div id="status" class="status idle">就绪。</div>
@@ -89,14 +91,29 @@
 const COLS = [];   // 列名
 let students = [];
 let currentCol = "第一单元";
+let currentSheet = "";
+let SHEETS = [];
 
 // ---------- 初始化 ----------
 async function init() {
   const r = await fetch("/api/students");
   const d = await r.json();
+  SHEETS = d.sheets || [];
+  currentSheet = d.sheet;
+  const sheetSel = document.getElementById("sheet");
+  sheetSel.innerHTML = "";
+  SHEETS.forEach(s => {
+    const o = document.createElement("option");
+    o.value = s; o.textContent = s;
+    if (s === currentSheet) o.selected = true;
+    sheetSel.appendChild(o);
+  });
+  sheetSel.onchange = () => { currentSheet = sheetSel.value; loadStudents(); };
+  COLS.length = 0;
   COLS.push(...d.cols);
   currentCol = d.default_col;
   const sel = document.getElementById("col");
+  sel.innerHTML = "";
   COLS.forEach(c => {
     const o = document.createElement("option");
     o.value = c; o.textContent = c;
@@ -107,6 +124,20 @@ async function init() {
   students = d.students;
   document.getElementById("count").textContent = `共 ${students.length} 名`;
   render();
+}
+
+// 切换班级时只重载学生，不动列
+async function loadStudents() {
+  setStatus("idle", "加载班级…");
+  try {
+    const r = await fetch(`/api/students?sheet=${encodeURIComponent(currentSheet)}`);
+    const d = await r.json();
+    if (!r.ok) { setStatus("err", d.detail || "加载失败"); return; }
+    students = d.students;
+    document.getElementById("count").textContent = `共 ${students.length} 名`;
+    render();
+    setStatus("idle", "就绪。");
+  } catch(e) { setStatus("err", "网络错误: " + e.message); }
 }
 
 function render(highlightSeq) {
@@ -173,7 +204,7 @@ async function doApply(d) {
   try {
     const r = await fetch("/api/apply", {
       method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ seq: d.seq, col_name: currentCol, score: d.score })
+      body: JSON.stringify({ seq: d.seq, col_name: currentCol, score: d.score, sheet_name: currentSheet })
     });
     const dd = await r.json();
     if (!r.ok) { setStatus("err","❌ " + (dd.detail||"写入失败")); return; }
@@ -242,7 +273,7 @@ function setRecognizing(on) {
   } else {
     recBtn.classList.remove("recording");
     recBtn.textContent = "🎤 开始语音";
-    recHint.textContent = "需 Chrome / Edge 浏览器 + 麦克风权限";
+    recHint.textContent = "";
   }
 }
 

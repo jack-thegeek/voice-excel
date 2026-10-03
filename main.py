@@ -38,6 +38,7 @@ class ApplyReq(BaseModel):
     seq: int
     col_name: str
     score: float
+    sheet_name: str = ""       # 班级（sheet 名），空串表示用第一个 sheet
 
 
 @app.get("/")
@@ -46,10 +47,19 @@ def index():
 
 
 @app.get("/api/students")
-def students():
-    return {"students": [_student_to_dict(s) for s in excel_editor.list_students()],
-            "cols": list(excel_editor.SCORE_COLS.keys()),
-            "default_col": excel_editor.DEFAULT_COL_NAME}
+def students(sheet: str | None = None):
+    sheets = excel_editor.list_sheets()
+    # 未指定 sheet 时用第一个
+    cur = sheet if sheet else (sheets[0] if sheets else "")
+    if not cur:
+        raise HTTPException(status_code=400, detail="Excel 中无任何 sheet")
+    return {
+        "sheet": cur,
+        "sheets": sheets,
+        "students": [_student_to_dict(s) for s in excel_editor.list_students(cur)],
+        "cols": list(excel_editor.SCORE_COLS.keys()),
+        "default_col": excel_editor.DEFAULT_COL_NAME,
+    }
 
 
 @app.post("/api/parse")
@@ -75,7 +85,8 @@ def api_parse(req: ParseReq):
 @app.post("/api/apply")
 def api_apply(req: ApplyReq):
     try:
-        stu = excel_editor.update_score(req.seq, req.col_name, req.score)
+        sheet = req.sheet_name or None
+        stu = excel_editor.update_score(req.seq, req.col_name, req.score, sheet)
     except excel_editor.ExcelError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"ok": True, "student": _student_to_dict(stu)}

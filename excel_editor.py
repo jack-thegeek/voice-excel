@@ -9,6 +9,7 @@ from typing import Optional
 import openpyxl
 
 EXCEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "成绩表.xlsx")
+# 兼容旧代码：仍暴露常量，但实际不再写死，按 sheet_name 动态选择
 SHEET_NAME = "班级成绩登记表"
 
 # 表头行
@@ -45,18 +46,29 @@ class Student:
     scores: dict[str, object]  # 列名 -> 值
 
 
-def _load() -> tuple[openpyxl.Workbook, openpyxl.worksheet.worksheet.Worksheet]:
+def _load(sheet_name: Optional[str] = None) -> tuple[openpyxl.Workbook, openpyxl.worksheet.worksheet.Worksheet]:
     if not os.path.exists(EXCEL_PATH):
         raise ExcelError(f"找不到成绩表: {EXCEL_PATH}")
     wb = openpyxl.load_workbook(EXCEL_PATH)
-    if SHEET_NAME not in wb.sheetnames:
-        raise ExcelError(f"工作表 {SHEET_NAME!r} 不存在，现有: {wb.sheetnames}")
-    return wb, wb[SHEET_NAME]
+    # 未指定 sheet 时用第一个
+    if sheet_name is None:
+        sheet_name = wb.sheetnames[0] if wb.sheetnames else None
+    if sheet_name is None or sheet_name not in wb.sheetnames:
+        raise ExcelError(f"工作表 {sheet_name!r} 不存在，现有: {wb.sheetnames}")
+    return wb, wb[sheet_name]
 
 
-def list_students() -> list[Student]:
-    """读取所有学生（按序号列非空、非统计行）。"""
-    _wb, ws = _load()
+def list_sheets() -> list[str]:
+    """返回 Excel 中所有 sheet 名（每个 sheet 对应一个班级）。"""
+    if not os.path.exists(EXCEL_PATH):
+        raise ExcelError(f"找不到成绩表: {EXCEL_PATH}")
+    wb = openpyxl.load_workbook(EXCEL_PATH, read_only=True)
+    return list(wb.sheetnames)
+
+
+def list_students(sheet_name: Optional[str] = None) -> list[Student]:
+    """读取指定 sheet（班级）所有学生。未指定则用第一个 sheet。"""
+    _wb, ws = _load(sheet_name)
     out: list[Student] = []
     for r in range(DATA_START_ROW, DATA_END_ROW + 1):
         seq = ws.cell(r, SEQ_COL).value
@@ -69,18 +81,18 @@ def list_students() -> list[Student]:
     return out
 
 
-def find_student(seq: int) -> Optional[Student]:
-    for s in list_students():
+def find_student(seq: int, sheet_name: Optional[str] = None) -> Optional[Student]:
+    for s in list_students(sheet_name):
         if s.seq == seq:
             return s
     return None
 
 
-def update_score(seq: int, col_name: str, new_value) -> Student:
-    """修改指定序号、指定列的分数并保存。返回更新后的学生信息。"""
+def update_score(seq: int, col_name: str, new_value, sheet_name: Optional[str] = None) -> Student:
+    """修改指定 sheet、序号、列的分数并保存。返回更新后的学生信息。"""
     if col_name not in SCORE_COLS:
         raise ExcelError(f"未知分数列: {col_name}，可选: {list(SCORE_COLS)}")
-    wb, ws = _load()
+    wb, ws = _load(sheet_name)
     target_row: Optional[int] = None
     for r in range(DATA_START_ROW, DATA_END_ROW + 1):
         v = ws.cell(r, SEQ_COL).value
@@ -88,7 +100,7 @@ def update_score(seq: int, col_name: str, new_value) -> Student:
             target_row = r
             break
     if target_row is None:
-        raise ExcelError(f"找不到序号 {seq} 的学生")
+        raise ExcelError(f"在班级 {ws.title!r} 中找不到序号 {seq} 的学生")
 
     col_idx = SCORE_COLS[col_name]
     ws.cell(target_row, col_idx, new_value)
@@ -102,4 +114,4 @@ def update_score(seq: int, col_name: str, new_value) -> Student:
     wb.save(EXCEL_PATH)
 
     # 返回最新数据
-    return find_student(seq)  # type: ignore[return-value]
+    return find_student(seq, sheet_name)  # type: ignore[return-value]

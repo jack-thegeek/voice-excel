@@ -197,8 +197,8 @@ def _open_browser(host: str, port: int) -> None:
 def main():
     import uvicorn
 
-    host = "127.0.0.1"
-    port = 8765
+    host = os.environ.get("HOST", "127.0.0.1")
+    port = int(os.environ.get("PORT", "8765"))
     # 后台开浏览器
     threading.Thread(target=_open_browser, args=(host, port), daemon=True).start()
     print(f"[启动] http://{host}:{port}/  （Ctrl+C 退出）")

@@ -3,89 +3,437 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>语音修改成绩表</title>
+<link rel="icon" href="data:," />
+<title>语音成绩登记</title>
 <style>
-  :root { --bg:#f5f7fa; --card:#fff; --pri:#2563eb; --ok:#16a34a; --warn:#d97706; --err:#dc2626; --bd:#e5e7eb; }
+  :root {
+    /* 颜色令牌 */
+    --bg: #f5f7fb;
+    --surface: #ffffff;
+    --border: #e5eaf0;
+    --border-strong: #d7dee8;
+
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --primary-soft: #eff6ff;
+
+    --success: #16a34a;
+    --success-soft: #f0fdf4;
+    --warning: #d97706;
+    --warning-soft: #fffbeb;
+    --danger: #dc2626;
+    --danger-hover: #b91c1c;
+    --danger-soft: #fef2f2;
+
+    --text: #1f2937;
+    --text-secondary: #475569;
+    --muted: #6b7280;
+    --muted-soft: #94a3b8;
+
+    /* 层级 */
+    --radius: 14px;
+    --radius-sm: 10px;
+    --shadow-sm: 0 1px 2px rgba(16, 24, 40, .05), 0 1px 3px rgba(16, 24, 40, .06);
+    --shadow-md: 0 4px 12px rgba(16, 24, 40, .08);
+    --ring: 0 0 0 3px rgba(37, 99, 235, .18);
+  }
+
   * { box-sizing: border-box; }
-  body { margin:0; font-family: "PingFang SC","Microsoft YaHei",system-ui,sans-serif;
-         background:var(--bg); color:#111827; }
-  header { background:linear-gradient(135deg,#2563eb,#7c3aed); color:#fff; padding:14px 20px;
-           box-shadow:0 2px 8px rgba(0,0,0,.1); }
-  header h1 { margin:0; font-size:20px; }
-  header p { margin:4px 0 0; opacity:.9; font-size:13px; }
-  .wrap { max-width:980px; margin:16px auto; padding:0 16px; }
-  .card { background:var(--card); border:1px solid var(--bd); border-radius:12px;
-          padding:16px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
-  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-  label { font-size:13px; color:#374151; }
-  select, input[type=text] { border:1px solid var(--bd); border-radius:8px; padding:8px 10px;
-                              font-size:14px; background:#fff; }
-  input[type=text] { flex:1; min-width:240px; }
-  button { border:none; border-radius:8px; padding:9px 16px; font-size:14px; cursor:pointer;
-           font-weight:600; transition:all .15s; }
-  .btn-pri { background:var(--pri); color:#fff; }
-  .btn-pri:hover { filter:brightness(1.08); }
-  .btn-ok  { background:var(--ok); color:#fff; }
-  .btn-cancel { background:#e5e7eb; color:#374151; }
-  .btn-rec  { background:var(--err); color:#fff; }
-  .btn-rec.recording { background:#991b1b; animation:pulse 1s infinite; }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
-  .muted { color:#6b7280; font-size:12px; }
-  .status { margin-top:10px; padding:10px 12px; border-radius:8px; font-size:14px; }
-  .status.idle  { background:#f3f4f6; color:#374151; }
-  .status.ok    { background:#dcfce7; color:#15803d; }
-  .status.err   { background:#fee2e2; color:#991b1b; }
-  .status.warn  { background:#fef3c7; color:#92400e; }
-  table { width:100%; border-collapse:collapse; font-size:13px; }
-  th,td { border:1px solid var(--bd); padding:6px 8px; text-align:center; }
-  th { background:#f9fafb; position:sticky; top:0; }
-  td.name { text-align:left; }
-  tr.hit  { background:#dbeafe !important; }
-  tr.stat td { background:#fffbeb; font-style:italic; }
-  .scroller { max-height:340px; overflow:auto; border-radius:8px; }
-  .footer { text-align:center; color:#9ca3af; font-size:12px; padding:12px; }
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                 "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- 布局：左控制 + 右表格，同屏可见 ---------- */
+  html, body { height: 100%; }
+  body { overflow: hidden; }
+  .layout {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 12px;
+    align-items: stretch;
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 12px;
+    height: 100vh;
+  }
+  .panel-left, .panel-right { display: flex; flex-direction: column; min-height: 0; }
+  .panel-left .card { overflow: auto; }
+  .panel-right .card { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    box-shadow: var(--shadow-sm);
+  }
+  .card-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .card-title {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* ---------- 表单 ---------- */
+  .field-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+  select, input[type="text"] {
+    width: 100%;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    padding: 7px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--text);
+    background: #fff;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  select { height: 36px; cursor: pointer; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 10px center; padding-right: 32px; }
+  input[type="text"]::placeholder { color: var(--muted-soft); }
+  select:hover, input[type="text"]:hover { border-color: var(--primary); }
+  select:focus-visible, input[type="text"]:focus-visible {
+    outline: none; border-color: var(--primary); box-shadow: var(--ring);
+  }
+
+  /* ---------- 按钮 ---------- */
+  button {
+    font-family: inherit;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color .16s, transform .05s, box-shadow .16s, border-color .16s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:focus-visible { outline: none; box-shadow: var(--ring); }
+  button:active { transform: translateY(1px); }
+
+  .btn-pri {
+    background: var(--primary); color: #fff;
+    height: 38px; padding: 0 18px;
+    white-space: nowrap;
+    font-size: 13px;
+  }
+  .btn-pri:hover { background: var(--primary-hover); }
+
+  /* 录音按钮 */
+  .btn-rec {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    height: 46px;
+    padding: 0 22px;
+    font-size: 14px;
+    color: #fff;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    box-shadow: 0 6px 18px rgba(220, 38, 38, .28);
+  }
+  .btn-rec:hover { box-shadow: 0 8px 22px rgba(220, 38, 38, .36); }
+  .btn-rec .rec-icon { width: 18px; height: 18px; }
+  .btn-rec .rec-icon svg { display: block; width: 100%; height: 100%; }
+  .rec-dot {
+    display: none;
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: #fff;
+    flex: 0 0 auto;
+  }
+
+  .btn-rec.recording {
+    background: linear-gradient(135deg, #b91c1c, #991b1b);
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, .5);
+    animation: recRing 1.4s ease-out infinite;
+  }
+  .btn-rec.recording .rec-dot { display: inline-block; animation: recDot 1s ease-in-out infinite; }
+  @keyframes recRing {
+    0%   { box-shadow: 0 0 0 0 rgba(220, 38, 38, .45); }
+    70%  { box-shadow: 0 0 0 14px rgba(220, 38, 38, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+  }
+  @keyframes recDot {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: .25; }
+  }
+
+  .record-area {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 4px 0 10px;
+  }
+  .record-area .btn-rec { width: 100%; }
+  .record-area .muted { font-size: 12px; text-align: center; min-height: 14px; }
+
+  .input-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+  .input-row input[type="text"] { flex: 1; min-width: 0; height: 38px; }
+
+  /* ---------- 提示 ---------- */
+  .tips {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .tips span {
+    flex: 0 0 auto;
+    max-width: 100%;
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 3px 9px;
+  }
+  .tips code {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    font-size: 12px;
+    color: var(--primary);
+    background: var(--primary-soft);
+    border-radius: 5px;
+    padding: 1px 5px;
+    margin: 0 2px;
+  }
+
+  /* ---------- 状态 ---------- */
+  .status {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    border: 1px solid transparent;
+    min-height: 38px;
+  }
+  .status::before {
+    content: "";
+    width: 9px; height: 9px;
+    flex: 0 0 9px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .status.idle  { background: #f1f5f9; color: #475569; border-color: #e2e8f0; }
+  .status.ok    { background: var(--success-soft); color: #15803d; border-color: #bbf7d0; }
+  .status.warn  { background: var(--warning-soft); color: #b45309; border-color: #fde68a; }
+  .status.err   { background: var(--danger-soft);  color: #b91c1c; border-color: #fecaca; }
+  .status.busy { background: var(--primary-soft); color: #1d4ed8; border-color: #bfdbfe; }
+  .status.busy::before {
+    background: transparent;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---------- 表格 ---------- */
+  .scroller {
+    overflow: auto;
+    flex: 1;
+    min-height: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+    min-width: 520px;
+    font-variant-numeric: tabular-nums;
+  }
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #f8fafc;
+    color: var(--text-secondary);
+    font-weight: 600;
+    padding: 8px 10px;
+    text-align: center;
+    border-bottom: 1px solid var(--border-strong);
+    white-space: nowrap;
+  }
+  tbody td {
+    border-bottom: 1px solid var(--border);
+    padding: 6px 10px;
+    text-align: center;
+    color: var(--text);
+  }
+  tbody tr:nth-child(even) td { background: #fafbfd; }
+  tbody tr:hover td { background: #f1f5f9; }
+  td.name { text-align: left; font-weight: 500; }
+
+  td.current-col, thead th.current-col {
+    background: var(--primary-soft) !important;
+    color: var(--primary-hover);
+    font-weight: 700;
+  }
+  tr.hit td { background: #fef3c7 !important; }
+  tr.hit { animation: flashRow 1.6s ease-out; }
+  @keyframes flashRow {
+    0% { background-color: #fde68a !important; }
+    100% { background-color: transparent; }
+  }
+
+  /* ---------- 图例 ---------- */
+  .legend {
+    margin-top: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  .legend .lg-col { background: var(--primary-soft); border: 1px solid #93c5fd; }
+  .legend .lg-hit { background: #fef3c7; border: 1px solid #fcd34d; }
+
+  /* ---------- 页脚 ---------- */
+  .footer {
+    margin-top: 8px;
+    text-align: center;
+    color: var(--muted-soft);
+    font-size: 11.5px;
+  }
+
+  .muted { color: var(--muted); }
+
+  /* ---------- 响应式 ---------- */
+  @media (max-width: 860px) {
+    html, body { height: auto; overflow: auto; }
+    .layout {
+      grid-template-columns: 1fr;
+      height: auto;
+      gap: 12px;
+    }
+    .panel-right .card { flex: none; }
+    .scroller { flex: none; max-height: 50vh; }
+  }
+  @media (max-width: 480px) {
+    .layout { padding: 8px; }
+    .card { padding: 12px; }
+    .field-grid { grid-template-columns: 1fr; }
+    .input-row { flex-direction: column; align-items: stretch; }
+    .input-row .btn-pri { width: 100%; }
+    table { font-size: 12px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
 </style>
 </head>
 <body>
-<header>
-  <h1>🎤 语音修改 Excel 成绩表</h1>
-  <p>说："2号，100-2-8等于几" → 自动算出 90 并写入对应学生分数</p>
-</header>
+<div class="layout">
+  <!-- 左：录入控制 -->
+  <aside class="panel-left">
+    <section class="card">
+      <div class="card-head">
+        <h2 class="card-title">录入设置</h2>
+      </div>
+      <div class="field-grid">
+        <div class="field">
+          <label for="sheet">班级</label>
+          <select id="sheet"></select>
+        </div>
+        <div class="field">
+          <label for="col">成绩列</label>
+          <select id="col"></select>
+        </div>
+      </div>
 
-<div class="wrap">
-  <!-- 控制区 -->
-  <div class="card">
-    <div class="row">
-      <label>班级：</label>
-      <select id="sheet"></select>
-      <label>目标列：</label>
-      <select id="col"></select>
-      <button id="recBtn" class="btn-rec">🎤 开始语音</button>
-      <span id="recHint" class="muted"></span>
-    </div>
-    <div class="row" style="margin-top:10px;">
-      <input id="textInput" type="text" placeholder="回车即解析并写入，例：2号 100-2-8等于几" />
-      <button id="parseBtn" class="btn-pri">解析</button>
-    </div>
-    <div id="status" class="status idle">就绪。</div>
-  </div>
+      <div class="record-area" style="margin-top:12px;">
+        <button id="recBtn" class="btn-rec" type="button">
+          <span class="rec-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+              <path d="M19 10v1a7 7 0 0 1-14 0v-1"/>
+              <line x1="12" y1="18" x2="12" y2="22"/>
+              <line x1="8" y1="22" x2="16" y2="22"/>
+            </svg>
+          </span>
+          <span class="rec-dot" aria-hidden="true"></span>
+          <span id="recLabel">语音录入</span>
+        </button>
+        <span id="recHint" class="muted"></span>
+      </div>
 
-  <!-- 表格 -->
-  <div class="card">
-    <div class="row" style="justify-content:space-between;">
-      <strong>学生成绩表</strong>
-      <span id="count" class="muted"></span>
-    </div>
-    <div class="scroller" style="margin-top:10px;">
-      <table id="tbl">
-        <thead><tr id="thead"></tr></thead>
-        <tbody id="tbody"></tbody>
-      </table>
-    </div>
-  </div>
+      <div class="input-row">
+        <input id="textInput" type="text" placeholder="例如：2号 100-2-8等于几" />
+        <button id="parseBtn" class="btn-pri" type="button">写入</button>
+      </div>
+
+      <div id="status" class="status idle" role="status" aria-live="polite">已就绪，可以开始录入了。</div>
+
+      <div class="tips">
+        <span><code>2号 100-2-8等于几</code></span>
+        <span><code>15号 100减2减8等于</code></span>
+        <span><code>7号 87.5</code>（直接设定）</span>
+        <span>说「等于」即自动结束并写入</span>
+      </div>
+
+      <div class="footer">自动保存到成绩表.xlsx</div>
+    </section>
+  </aside>
+
+  <!-- 右：成绩一览 -->
+  <main class="panel-right">
+    <section class="card">
+      <div class="card-head">
+        <h2 class="card-title" id="sheetTitle">成绩表</h2>
+      </div>
+      <div class="scroller">
+        <table id="tbl">
+          <thead><tr id="thead"></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <div class="legend">
+        <span><i class="lg-col"></i>当前成绩列</span>
+        <span><i class="lg-hit"></i>刚写入的学生</span>
+      </div>
+    </section>
+  </main>
 </div>
-
-<div class="footer">数据直接写入 当前目录 / 成绩表.xlsx（首次写入会生成 .bak 备份）</div>
 
 <script>
 const COLS = [];   // 列名
@@ -93,6 +441,12 @@ let students = [];
 let currentCol = "第一单元";
 let currentSheet = "";
 let SHEETS = [];
+
+// 表格标题 = 当前选中的 Excel sheet 名
+function renderSheetTitle() {
+  const el = document.getElementById("sheetTitle");
+  if (el) el.textContent = currentSheet || "成绩表";
+}
 
 // ---------- 初始化 ----------
 async function init() {
@@ -108,7 +462,7 @@ async function init() {
     if (s === currentSheet) o.selected = true;
     sheetSel.appendChild(o);
   });
-  sheetSel.onchange = () => { currentSheet = sheetSel.value; loadStudents(); };
+  sheetSel.onchange = () => { currentSheet = sheetSel.value; renderSheetTitle(); loadStudents(); };
   COLS.length = 0;
   COLS.push(...d.cols);
   currentCol = d.default_col;
@@ -122,30 +476,31 @@ async function init() {
   });
   sel.onchange = () => { currentCol = sel.value; render(); };
   students = d.students;
-  document.getElementById("count").textContent = `共 ${students.length} 名`;
+  renderSheetTitle();
   render();
 }
 
 // 切换班级时只重载学生，不动列
 async function loadStudents() {
-  setStatus("idle", "加载班级…");
+  setStatus("busy", "正在加载班级…");
   try {
     const r = await fetch(`/api/students?sheet=${encodeURIComponent(currentSheet)}`);
     const d = await r.json();
     if (!r.ok) { setStatus("err", d.detail || "加载失败"); return; }
     students = d.students;
-    document.getElementById("count").textContent = `共 ${students.length} 名`;
     render();
-    setStatus("idle", "就绪。");
-  } catch(e) { setStatus("err", "网络错误: " + e.message); }
+    setStatus("idle", "已就绪，可以开始录入了。");
+  } catch(e) { setStatus("err", "网络错误：" + e.message); }
 }
 
 function render(highlightSeq) {
   const thead = document.getElementById("thead");
   const tbody = document.getElementById("tbody");
   thead.innerHTML = "";
-  ["序号","姓名",...COLS].forEach(c => {
-    const th = document.createElement("th"); th.textContent = c; thead.appendChild(th);
+  ["序号","姓名",...COLS].forEach((c, idx) => {
+    const th = document.createElement("th"); th.textContent = c;
+    if (idx >= 2 && COLS[idx - 2] === currentCol) th.classList.add("current-col");
+    thead.appendChild(th);
   });
   tbody.innerHTML = "";
   students.forEach(s => {
@@ -154,7 +509,7 @@ function render(highlightSeq) {
     let html = `<td>${s.seq}</td><td class="name">${s.name}</td>`;
     COLS.forEach(c => {
       const v = s.scores[c] ?? "";
-      const cls = (c === currentCol) ? ' style="background:#fef9c3;font-weight:600"' : "";
+      const cls = (c === currentCol) ? ' class="current-col"' : "";
       html += `<td${cls}>${v}</td>`;
     });
     tr.innerHTML = html;
@@ -178,50 +533,52 @@ let pendingScore = null;
 let pendingSeq = null;
 
 async function doParse(text) {
-  if (!text || !text.trim()) { setStatus("warn","请输入或说出内容。"); return; }
-  setStatus("idle","解析中…");
+  if (!text || !text.trim()) { setStatus("warn","请先录音或输入内容。"); return; }
+  setStatus("busy","正在识别内容…");
   try {
     const r = await fetch("/api/parse", {
       method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({ text, col_name: currentCol })
     });
     const d = await r.json();
-    if (!r.ok) { setStatus("err", "❌ " + (d.detail || "解析失败")); return; }
+    if (!r.ok) { setStatus("err", d.detail || "内容无法识别"); return; }
     // 解析成功：找不到学生 -> 报错；否则直接写入
     if (!d.student_found) {
-      setStatus("warn", `⚠️ 找不到 ${d.seq}号 学生（${d.is_direct ? "" : `${d.expression} = `}${d.score}）`);
+      setStatus("warn", `找不到 ${d.seq} 号学生，请确认序号后再试（结果为 ${d.is_direct ? "" : `${d.expression} = `}${d.score}）`);
       render(d.seq);
       return;
     }
     doApply(d);
-  } catch(e) { setStatus("err","网络错误: " + e.message); }
+  } catch(e) { setStatus("err","网络错误：" + e.message); }
 }
 
 async function doApply(d) {
   pendingScore = d.score; pendingSeq = d.seq;
   const verb = d.is_direct ? "直接设定" : `计算 ${d.expression} = `;
-  setStatus("idle", `${verb}${d.score} → 写入 ${d.seq}号 ${d.student.name}「${currentCol}」…`);
+  setStatus("busy", `正在写入：${d.seq}号 ${d.student.name} 的「${currentCol}」= ${d.score}（${verb}${d.score}）…`);
   try {
     const r = await fetch("/api/apply", {
       method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({ seq: d.seq, col_name: currentCol, score: d.score, sheet_name: currentSheet })
     });
     const dd = await r.json();
-    if (!r.ok) { setStatus("err","❌ " + (dd.detail||"写入失败")); return; }
+    if (!r.ok) { setStatus("err", dd.detail || "写入失败"); return; }
     // 更新本地
     const i = students.findIndex(s => s.seq === d.seq);
     if (i >= 0) students[i] = dd.student;
     render(d.seq);
     const verb2 = d.is_direct ? "直接设定" : `计算 ${d.expression} = `;
-    setStatus("ok", `✅ ${d.seq}号 ${dd.student.name} 「${currentCol}」= ${dd.student.scores[currentCol]}  （${verb2}${d.score}）`);
-  } catch(e) { setStatus("err","网络错误: " + e.message); }
+    setStatus("ok", `已写入：${d.seq}号 ${dd.student.name} 「${currentCol}」= ${dd.student.scores[currentCol]}（${verb2}${d.score}）`);
+  } catch(e) { setStatus("err","网络错误：" + e.message); }
 }
 
 // ---------- 语音识别（FunASR WebSocket 流式） ----------
 const recBtn = document.getElementById("recBtn");
 const recHint = document.getElementById("recHint");
 let recognizing = false;
-const TRIGGERS = ["等于几", "等于多少"];
+// 收尾关键词：语音中出现其一即自动结束并写入
+// 说明：「等于」已覆盖「等于几/等于多少/等于啥」；其余为与 parser 同样支持的收尾说法
+const TRIGGERS = ["等于", "等于几", "等于多少", "等于啥", "得多少", "得几", "是多少", "是几"];
 
 let wsCtx = null;          // AudioContext
 let wsStream = null;       // MediaStream
@@ -266,13 +623,14 @@ function stopMic() {
 
 function setRecognizing(on) {
   recognizing = on;
+  const label = document.getElementById("recLabel");
   if (on) {
     recBtn.classList.add("recording");
-    recBtn.textContent = '● 正在听…（说"等于几"结束）';
-    recHint.textContent = 'FunASR 持续聆听中，遇到"等于几/等于多少"自动结束';
+    label.textContent = "正在聆听… 点击结束";
+    recHint.textContent = "";
   } else {
     recBtn.classList.remove("recording");
-    recBtn.textContent = "🎤 开始语音";
+    label.textContent = "语音录入";
     recHint.textContent = "";
   }
 }
@@ -281,7 +639,7 @@ async function startAsr() {
   if (recognizing) return;
   accumulated = "";
   document.getElementById("textInput").value = "";
-  setStatus("idle", "连接 FunASR…");
+  setStatus("busy", "正在连接语音识别服务…");
   // 建 WebSocket
   const proto = location.protocol === "https:" ? "wss" : "ws";
   asrWs = new WebSocket(`${proto}://${location.host}/ws/asr`);
@@ -298,14 +656,14 @@ async function startAsr() {
         await startMic();
         micStarted = true;
         setRecognizing(true);
-        setStatus("idle", "正在聆听…说出『序号+算式+等于几』");
+        setStatus("busy", "正在聆听，请说出「序号 + 算式 + 等于几」…");
       } catch(e) {
-        setStatus("err", "麦克风启动失败: " + e.message);
+        setStatus("err", "麦克风启动失败：" + e.message);
         try { asrWs.send(JSON.stringify({action:"stop"})); } catch(e) {}
       }
       return;
     }
-    if (d.status === "loading") { setStatus("idle", "FunASR 模型首次加载中，约 10-30 秒…"); return; }
+    if (d.status === "loading") { setStatus("busy", "语音识别模型首次加载中，约 10-30 秒，请稍候…"); return; }
     if (d.status === "done") {
       setRecognizing(false);
       stopMic();
@@ -314,7 +672,7 @@ async function startAsr() {
       return;
     }
     if (d.error) {
-      setStatus("err", "ASR 错误: " + d.error);
+      setStatus("err", "识别出错：" + d.error);
       setRecognizing(false);
       stopMic();
       return;
@@ -332,7 +690,7 @@ async function startAsr() {
     }
   };
   asrWs.onerror = () => {
-    setStatus("err", "WebSocket 连接失败");
+    setStatus("err", "连接语音识别服务失败");
     setRecognizing(false);
     stopMic();
   };

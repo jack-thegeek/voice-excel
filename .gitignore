@@ -1,0 +1,20 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# 真实成绩数据（含学生隐私，不入库）
+成绩表.xlsx
+成绩表.xlsx.bak
+
+# 含硬编码 API Key 的探测脚本，不入库
+test_audio_input.py
+
+# 模型缓存
+.cache/
+
+# 编辑器
+*.swp
+.vscode/
+.idea/

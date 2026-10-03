@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>语音修改成绩表</title>
+<style>
+  :root { --bg:#f5f7fa; --card:#fff; --pri:#2563eb; --ok:#16a34a; --warn:#d97706; --err:#dc2626; --bd:#e5e7eb; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: "PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+         background:var(--bg); color:#111827; }
+  header { background:linear-gradient(135deg,#2563eb,#7c3aed); color:#fff; padding:14px 20px;
+           box-shadow:0 2px 8px rgba(0,0,0,.1); }
+  header h1 { margin:0; font-size:20px; }
+  header p { margin:4px 0 0; opacity:.9; font-size:13px; }
+  .wrap { max-width:980px; margin:16px auto; padding:0 16px; }
+  .card { background:var(--card); border:1px solid var(--bd); border-radius:12px;
+          padding:16px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  label { font-size:13px; color:#374151; }
+  select, input[type=text] { border:1px solid var(--bd); border-radius:8px; padding:8px 10px;
+                              font-size:14px; background:#fff; }
+  input[type=text] { flex:1; min-width:240px; }
+  button { border:none; border-radius:8px; padding:9px 16px; font-size:14px; cursor:pointer;
+           font-weight:600; transition:all .15s; }
+  .btn-pri { background:var(--pri); color:#fff; }
+  .btn-pri:hover { filter:brightness(1.08); }
+  .btn-ok  { background:var(--ok); color:#fff; }
+  .btn-cancel { background:#e5e7eb; color:#374151; }
+  .btn-rec  { background:var(--err); color:#fff; }
+  .btn-rec.recording { background:#991b1b; animation:pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+  .muted { color:#6b7280; font-size:12px; }
+  .status { margin-top:10px; padding:10px 12px; border-radius:8px; font-size:14px; }
+  .status.idle  { background:#f3f4f6; color:#374151; }
+  .status.ok    { background:#dcfce7; color:#15803d; }
+  .status.err   { background:#fee2e2; color:#991b1b; }
+  .status.warn  { background:#fef3c7; color:#92400e; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th,td { border:1px solid var(--bd); padding:6px 8px; text-align:center; }
+  th { background:#f9fafb; position:sticky; top:0; }
+  td.name { text-align:left; }
+  tr.hit  { background:#dbeafe !important; }
+  tr.stat td { background:#fffbeb; font-style:italic; }
+  .scroller { max-height:340px; overflow:auto; border-radius:8px; }
+  .footer { text-align:center; color:#9ca3af; font-size:12px; padding:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🎤 语音修改 Excel 成绩表</h1>
+  <p>说："2号，100-2-8等于几" → 自动算出 90 并写入对应学生分数</p>
+</header>
+
+<div class="wrap">
+  <!-- 控制区 -->
+  <div class="card">
+    <div class="row">
+      <label>目标列：</label>
+      <select id="col"></select>
+      <button id="recBtn" class="btn-rec">🎤 开始语音</button>
+      <span id="recHint" class="muted">需 Chrome / Edge 浏览器</span>
+    </div>
+    <div class="row" style="margin-top:10px;">
+      <input id="textInput" type="text" placeholder="回车即解析并写入，例：2号 100-2-8等于几（出错才提示）" />
+      <button id="parseBtn" class="btn-pri">解析</button>
+    </div>
+    <div id="status" class="status idle">就绪。</div>
+  </div>
+
+  <!-- 表格 -->
+  <div class="card">
+    <div class="row" style="justify-content:space-between;">
+      <strong>学生成绩表</strong>
+      <span id="count" class="muted"></span>
+    </div>
+    <div class="scroller" style="margin-top:10px;">
+      <table id="tbl">
+        <thead><tr id="thead"></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="footer">数据直接写入 当前目录 / 成绩表.xlsx（首次写入会生成 .bak 备份）</div>
+
+<script>
+const COLS = [];   // 列名
+let students = [];
+let currentCol = "第一单元";
+
+// ---------- 初始化 ----------
+async function init() {
+  const r = await fetch("/api/students");
+  const d = await r.json();
+  COLS.push(...d.cols);
+  currentCol = d.default_col;
+  const sel = document.getElementById("col");
+  COLS.forEach(c => {
+    const o = document.createElement("option");
+    o.value = c; o.textContent = c;
+    if (c === currentCol) o.selected = true;
+    sel.appendChild(o);
+  });
+  sel.onchange = () => { currentCol = sel.value; render(); };
+  students = d.students;
+  document.getElementById("count").textContent = `共 ${students.length} 名`;
+  render();
+}
+
+function render(highlightSeq) {
+  const thead = document.getElementById("thead");
+  const tbody = document.getElementById("tbody");
+  thead.innerHTML = "";
+  ["序号","姓名",...COLS].forEach(c => {
+    const th = document.createElement("th"); th.textContent = c; thead.appendChild(th);
+  });
+  tbody.innerHTML = "";
+  students.forEach(s => {
+    const tr = document.createElement("tr");
+    if (s.seq === highlightSeq) tr.classList.add("hit");
+    let html = `<td>${s.seq}</td><td class="name">${s.name}</td>`;
+    COLS.forEach(c => {
+      const v = s.scores[c] ?? "";
+      const cls = (c === currentCol) ? ' style="background:#fef9c3;font-weight:600"' : "";
+      html += `<td${cls}>${v}</td>`;
+    });
+    tr.innerHTML = html;
+    tbody.appendChild(tr);
+  });
+  // 自动滚动到高亮行
+  if (highlightSeq != null) {
+    const hit = tbody.querySelector("tr.hit");
+    if (hit) hit.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+}
+
+function setStatus(cls, msg) {
+  const el = document.getElementById("status");
+  el.className = "status " + cls;
+  el.textContent = msg;
+}
+
+// ---------- 解析 + 直接写入 ----------
+let pendingScore = null;
+let pendingSeq = null;
+
+async function doParse(text) {
+  if (!text || !text.trim()) { setStatus("warn","请输入或说出内容。"); return; }
+  setStatus("idle","解析中…");
+  try {
+    const r = await fetch("/api/parse", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ text, col_name: currentCol })
+    });
+    const d = await r.json();
+    if (!r.ok) { setStatus("err", "❌ " + (d.detail || "解析失败")); return; }
+    // 解析成功：找不到学生 -> 报错；否则直接写入
+    if (!d.student_found) {
+      setStatus("warn", `⚠️ 找不到 ${d.seq}号 学生（${d.is_direct ? "" : `${d.expression} = `}${d.score}）`);
+      render(d.seq);
+      return;
+    }
+    doApply(d);
+  } catch(e) { setStatus("err","网络错误: " + e.message); }
+}
+
+async function doApply(d) {
+  pendingScore = d.score; pendingSeq = d.seq;
+  const verb = d.is_direct ? "直接设定" : `计算 ${d.expression} = `;
+  setStatus("idle", `${verb}${d.score} → 写入 ${d.seq}号 ${d.student.name}「${currentCol}」…`);
+  try {
+    const r = await fetch("/api/apply", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ seq: d.seq, col_name: currentCol, score: d.score })
+    });
+    const dd = await r.json();
+    if (!r.ok) { setStatus("err","❌ " + (dd.detail||"写入失败")); return; }
+    // 更新本地
+    const i = students.findIndex(s => s.seq === d.seq);
+    if (i >= 0) students[i] = dd.student;
+    render(d.seq);
+    const verb2 = d.is_direct ? "直接设定" : `计算 ${d.expression} = `;
+    setStatus("ok", `✅ ${d.seq}号 ${dd.student.name} 「${currentCol}」= ${dd.student.scores[currentCol]}  （${verb2}${d.score}）`);
+  } catch(e) { setStatus("err","网络错误: " + e.message); }
+}
+
+// ---------- 语音识别（FunASR WebSocket 流式） ----------
+const recBtn = document.getElementById("recBtn");
+const recHint = document.getElementById("recHint");
+let recognizing = false;
+const TRIGGERS = ["等于几", "等于多少"];
+
+let wsCtx = null;          // AudioContext
+let wsStream = null;       // MediaStream
+let wsProc = null;         // ScriptProcessor
+let wsSrc = null;          // MediaStreamSource
+let asrWs = null;          // WebSocket
+let asrReady = false;      // 模型是否就绪
+let accumulated = "";      // 服务端返回的累计增量文本
+
+// 浏览器重采样到 16kHz（线性插值）
+function downsample(buffer, inRate) {
+  if (inRate === 16000) return buffer;
+  const ratio = inRate / 16000;
+  const outLen = Math.floor(buffer.length / ratio);
+  const out = new Float32Array(outLen);
+  for (let i = 0; i < outLen; i++) {
+    const idx = i * ratio;
+    const lo = Math.floor(idx);
+    const hi = Math.min(lo + 1, buffer.length - 1);
+    const frac = idx - lo;
+    out[i] = buffer[lo] * (1 - frac) + buffer[hi] * frac;
+  }
+  return out;
+}
+// Float32 [-1,1] -> Int16 PCM
+function floatTo16(buffer) {
+  const out = new Int16Array(buffer.length);
+  for (let i = 0; i < buffer.length; i++) {
+    let s = Math.max(-1, Math.min(1, buffer[i]));
+    out[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+  }
+  return out;
+}
+
+function stopMic() {
+  try { if (wsProc) wsProc.disconnect(); } catch(e) {}
+  try { if (wsSrc) wsSrc.disconnect(); } catch(e) {}
+  if (wsStream) wsStream.getTracks().forEach(t => t.stop());
+  if (wsCtx) { try { wsCtx.close(); } catch(e) {} }
+  wsProc = wsSrc = wsStream = wsCtx = null;
+}
+
+function setRecognizing(on) {
+  recognizing = on;
+  if (on) {
+    recBtn.classList.add("recording");
+    recBtn.textContent = '● 正在听…（说"等于几"结束）';
+    recHint.textContent = 'FunASR 持续聆听中，遇到"等于几/等于多少"自动结束';
+  } else {
+    recBtn.classList.remove("recording");
+    recBtn.textContent = "🎤 开始语音";
+    recHint.textContent = "需 Chrome / Edge 浏览器 + 麦克风权限";
+  }
+}
+
+async function startAsr() {
+  if (recognizing) return;
+  accumulated = "";
+  document.getElementById("textInput").value = "";
+  setStatus("idle", "连接 FunASR…");
+  // 建 WebSocket
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  asrWs = new WebSocket(`${proto}://${location.host}/ws/asr`);
+  asrWs.binaryType = "arraybuffer";
+
+  let micStarted = false;
+  asrWs.onmessage = async (ev) => {
+    let d;
+    try { d = JSON.parse(ev.data); } catch(e) { return; }
+    if (d.status === "ready") {
+      asrReady = true;
+      // 启动麦克风
+      try {
+        await startMic();
+        micStarted = true;
+        setRecognizing(true);
+        setStatus("idle", "正在聆听…说出『序号+算式+等于几』");
+      } catch(e) {
+        setStatus("err", "麦克风启动失败: " + e.message);
+        try { asrWs.send(JSON.stringify({action:"stop"})); } catch(e) {}
+      }
+      return;
+    }
+    if (d.status === "loading") { setStatus("idle", "FunASR 模型首次加载中，约 10-30 秒…"); return; }
+    if (d.status === "done") {
+      setRecognizing(false);
+      stopMic();
+      const all = document.getElementById("textInput").value;
+      if (all) doParse(all);
+      return;
+    }
+    if (d.error) {
+      setStatus("err", "ASR 错误: " + d.error);
+      setRecognizing(false);
+      stopMic();
+      return;
+    }
+    // 增量文本
+    if (typeof d.text === "string" && d.text) {
+      accumulated += d.text;
+      const inp = document.getElementById("textInput");
+      inp.value = accumulated;
+      normalizeHao(inp);
+      if (TRIGGERS.some(k => accumulated.includes(k))) {
+        // 触发结束
+        try { asrWs.send(JSON.stringify({action:"stop"})); } catch(e) {}
+      }
+    }
+  };
+  asrWs.onerror = () => {
+    setStatus("err", "WebSocket 连接失败");
+    setRecognizing(false);
+    stopMic();
+  };
+  asrWs.onclose = () => {
+    if (recognizing) {
+      setRecognizing(false);
+      stopMic();
+    }
+  };
+}
+
+async function startMic() {
+  wsStream = await navigator.mediaDevices.getUserMedia({
+    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }
+  });
+  wsCtx = new (window.AudioContext || window.webkitAudioContext)();
+  await wsCtx.resume();
+  wsSrc = wsCtx.createMediaStreamSource(wsStream);
+  // ScriptProcessor 4096 帧，触发回调时取数据
+  wsProc = wsCtx.createScriptProcessor(4096, 1, 1);
+  wsProc.onaudioprocess = (e) => {
+    if (!asrWs || asrWs.readyState !== 1) return;
+    const ch0 = e.inputBuffer.getChannelData(0);
+    const ds = downsample(ch0, wsCtx.sampleRate);
+    const i16 = floatTo16(ds);
+    // 不满一个 chunk 也直接发，后端会累积
+    asrWs.send(i16.buffer);
+  };
+  wsSrc.connect(wsProc);
+  wsProc.connect(wsCtx.destination); // 必须 connect 才会触发 onaudioprocess
+}
+
+recBtn.onclick = () => {
+  if (recognizing) {
+    // 手动停止：发 stop 让后端 flush
+    try { asrWs && asrWs.send(JSON.stringify({action:"stop"})); } catch(e) {}
+    return;
+  }
+  startAsr();
+};
+
+document.getElementById("parseBtn").onclick = () => doParse(document.getElementById("textInput").value);
+
+// 在"号"后自动插入逗号分隔（输入框 & 语音结果）
+const SEPARATORS = "，,。、；;！!？? \t";
+function normalizeHao(input) {
+  let v = input.value;
+  if (!v) return;
+  let pos = input.selectionStart || v.length;
+  let out = "";
+  for (let i = 0; i < v.length; i++) {
+    out += v[i];
+    if (v[i] === "号") {
+      const next = v[i + 1];
+      if (next === undefined || !SEPARATORS.includes(next)) {
+        out += "，";
+        if (i + 1 <= pos) pos += 1; // 光标在插入点之前，同步后移
+      }
+    }
+  }
+  if (out !== v) {
+    input.value = out;
+    try { input.setSelectionRange(pos, pos); } catch (e) {}
+  }
+}
+const textInputEl = document.getElementById("textInput");
+textInputEl.addEventListener("input", () => normalizeHao(textInputEl));
+textInputEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") doParse(e.target.value);
+});
+
+init();
+</script>
+</body>
+</html>

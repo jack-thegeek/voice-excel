@@ -51,12 +51,39 @@
     -webkit-font-smoothing: antialiased;
   }
 
+  /* ---------- 滚动条美化（Chrome/Edge/Safari + Firefox） ---------- */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #c3ccd9 #f1f5f9;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  /* 轨道：淡色圆角槽 */
+  *::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 999px;
+    margin: 2px;
+  }
+  /* 滑块：胶囊圆角 */
+  *::-webkit-scrollbar-thumb {
+    background: #c3ccd9;
+    border-radius: 999px;
+  }
+  *::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  *::-webkit-scrollbar-thumb:active { background: var(--primary); }
+  *::-webkit-scrollbar-corner { background: transparent; }
+  /* 下拉菜单用更细的滚动条 */
+  .cselect-menu::-webkit-scrollbar { width: 8px; height: 8px; }
+  .cselect-menu { scrollbar-width: thin; }
+
   /* ---------- 布局：左控制 + 右表格，同屏可见 ---------- */
   html, body { height: 100%; }
   body { overflow: hidden; }
   .layout {
     display: grid;
-    grid-template-columns: 340px 1fr;
+    grid-template-columns: 400px 1fr;
     gap: 12px;
     align-items: stretch;
     max-width: 1320px;
@@ -65,7 +92,17 @@
     height: 100vh;
   }
   .panel-left, .panel-right { display: flex; flex-direction: column; min-height: 0; }
-  .panel-left .card { overflow: auto; }
+  .panel-left .card {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+  }
+  .panel-left .footer {
+    margin-top: auto;
+    padding-top: 12px;
+  }
   .panel-right .card { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 
   .card {
@@ -95,8 +132,8 @@
   /* ---------- 表单 ---------- */
   .field-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
+    grid-template-columns: 1fr;
+    gap: 12px;
   }
   .field { display: flex; flex-direction: column; gap: 5px; }
   .field label {
@@ -104,7 +141,7 @@
     font-weight: 600;
     color: var(--text-secondary);
   }
-  select, input[type="text"] {
+  input[type="text"] {
     width: 100%;
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-sm);
@@ -115,14 +152,127 @@
     background: #fff;
     transition: border-color .15s, box-shadow .15s;
   }
-  select { height: 36px; cursor: pointer; appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-    background-repeat: no-repeat; background-position: right 10px center; padding-right: 32px; }
   input[type="text"]::placeholder { color: var(--muted-soft); }
-  select:hover, input[type="text"]:hover { border-color: var(--primary); }
-  select:focus-visible, input[type="text"]:focus-visible {
+  input[type="text"]:hover { border-color: var(--primary); }
+  input[type="text"]:focus-visible {
     outline: none; border-color: var(--primary); box-shadow: var(--ring);
   }
+
+  /* ---------- 自定义下拉 ---------- */
+  .cselect { position: relative; }
+  .cselect-trigger {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    height: 40px;
+    padding: 0 12px;
+    background: #fff;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-family: inherit;
+    font-weight: 500;
+    color: var(--text);
+    cursor: pointer;
+    text-align: left;
+    transition: border-color .15s, box-shadow .15s, background-color .15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .cselect-trigger:hover { border-color: var(--primary); }
+  .cselect.open .cselect-trigger,
+  .cselect-trigger:focus-visible {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: var(--ring);
+  }
+  .cselect-icon {
+    flex: 0 0 auto;
+    width: 17px;
+    height: 17px;
+    color: var(--muted);
+  }
+  .cselect-icon svg { display: block; width: 100%; height: 100%; }
+  .cselect-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .cselect-label.empty { color: var(--muted-soft); font-weight: 400; }
+  .cselect-arrow {
+    flex: 0 0 auto;
+    width: 15px;
+    height: 15px;
+    color: var(--muted-soft);
+    transition: transform .18s ease;
+  }
+  .cselect-arrow svg { display: block; width: 100%; height: 100%; }
+  .cselect.open .cselect-arrow { transform: rotate(180deg); }
+  .cselect-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    z-index: 30;
+    max-height: 232px;
+    overflow: auto;
+    padding: 4px;
+    margin: 0;
+    list-style: none;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-md);
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(-4px);
+    pointer-events: none;
+    transition: opacity .16s ease, transform .16s ease, visibility .16s;
+  }
+  .cselect.open .cselect-menu {
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+  .cselect-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+    outline: none;
+    transition: background-color .12s ease;
+  }
+  .cselect-option:hover,
+  .cselect-option.active,
+  .cselect-option:focus-visible {
+    background: var(--primary-soft);
+    color: var(--primary-hover);
+  }
+  .cselect-option.selected { font-weight: 600; color: var(--primary-hover); }
+  .cselect-opt-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .cselect-check {
+    flex: 0 0 auto;
+    width: 14px;
+    height: 14px;
+    color: var(--primary);
+    opacity: 0;
+    transition: opacity .12s ease;
+  }
+  .cselect-check svg { display: block; width: 100%; height: 100%; }
+  .cselect-option.selected .cselect-check { opacity: 1; }
 
   /* ---------- 按钮 ---------- */
   button {
@@ -192,10 +342,69 @@
     flex-direction: column;
     align-items: stretch;
     gap: 8px;
-    padding: 4px 0 10px;
+    padding: 10px 0;
+    margin-top: 12px;
   }
   .record-area .btn-rec { width: 100%; }
   .record-area .muted { font-size: 12px; text-align: center; min-height: 14px; }
+
+  /* ---------- 当前录入上下文 ---------- */
+  .context {
+    margin-top: 12px;
+    padding: 12px 14px 13px;
+    background: linear-gradient(135deg, #f3f7ff, var(--primary-soft));
+    border: 1px solid #dbeafe;
+    border-radius: var(--radius-sm);
+  }
+  .context-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .context-title {
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    color: var(--muted);
+  }
+  .context-col {
+    margin-top: 3px;
+    font-size: 21px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .context-progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 9px;
+  }
+  .pbar {
+    flex: 1;
+    height: 6px;
+    border-radius: 999px;
+    background: #dbeafe;
+    overflow: hidden;
+  }
+  .pfill {
+    height: 100%;
+    width: 0;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #60a5fa, var(--primary));
+    transition: width .35s ease;
+  }
+  .pcount {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
 
   .input-row {
     display: flex;
@@ -235,20 +444,25 @@
 
   /* ---------- 状态 ---------- */
   .status {
-    margin-top: 10px;
+    margin-top: 12px;
     display: flex;
-    align-items: center;
-    gap: 8px;
+    align-items: flex-start;
+    gap: 9px;
     padding: 9px 12px;
     border-radius: var(--radius-sm);
     font-size: 13px;
+    line-height: 1.55;
     border: 1px solid transparent;
     min-height: 38px;
+    white-space: pre-line;
   }
+  /* 状态点：与第一行文字垂直居中对齐，多行时不居中夹缝 */
   .status::before {
     content: "";
-    width: 9px; height: 9px;
-    flex: 0 0 9px;
+    width: 8px;
+    height: 8px;
+    flex: 0 0 8px;
+    margin-top: 6px;
     border-radius: 50%;
     background: currentColor;
   }
@@ -341,17 +555,17 @@
   @media (max-width: 860px) {
     html, body { height: auto; overflow: auto; }
     .layout {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
       height: auto;
       gap: 12px;
     }
+    .panel-left, .panel-right { min-width: 0; }
     .panel-right .card { flex: none; }
     .scroller { flex: none; max-height: 50vh; }
   }
   @media (max-width: 480px) {
     .layout { padding: 8px; }
     .card { padding: 12px; }
-    .field-grid { grid-template-columns: 1fr; }
     .input-row { flex-direction: column; align-items: stretch; }
     .input-row .btn-pri { width: 100%; }
     table { font-size: 12px; }
@@ -372,16 +586,66 @@
       </div>
       <div class="field-grid">
         <div class="field">
-          <label for="sheet">班级</label>
-          <select id="sheet"></select>
+          <label id="sheetLabel" for="sheetTrigger">班级</label>
+          <div class="cselect" id="sheet">
+            <button class="cselect-trigger" id="sheetTrigger" type="button"
+                    aria-haspopup="listbox" aria-expanded="false" aria-controls="sheetMenu" aria-labelledby="sheetLabel">
+              <span class="cselect-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                  <circle cx="9" cy="7" r="4"/>
+                  <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+              </span>
+              <span class="cselect-label empty">请选择班级</span>
+              <span class="cselect-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m6 9 6 6 6-6"/>
+                </svg>
+              </span>
+            </button>
+            <ul class="cselect-menu" id="sheetMenu" role="listbox" aria-labelledby="sheetLabel"></ul>
+          </div>
         </div>
         <div class="field">
-          <label for="col">成绩列</label>
-          <select id="col"></select>
+          <label id="colLabel" for="colTrigger">成绩列</label>
+          <div class="cselect" id="col">
+            <button class="cselect-trigger" id="colTrigger" type="button"
+                    aria-haspopup="listbox" aria-expanded="false" aria-controls="colMenu" aria-labelledby="colLabel">
+              <span class="cselect-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <ellipse cx="12" cy="5" rx="9" ry="3"/>
+                  <path d="M3 5v14a9 3 0 0 0 18 0V5"/>
+                  <path d="M3 12h18"/>
+                </svg>
+              </span>
+              <span class="cselect-label empty">请选择成绩列</span>
+              <span class="cselect-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m6 9 6 6 6-6"/>
+                </svg>
+              </span>
+            </button>
+            <ul class="cselect-menu" id="colMenu" role="listbox" aria-labelledby="colLabel"></ul>
+          </div>
         </div>
       </div>
 
-      <div class="record-area" style="margin-top:12px;">
+      <div class="context" aria-label="当前录入进度">
+        <div class="context-top">
+          <span class="context-title">当前录入</span>
+        </div>
+        <div class="context-col" id="ctxCol">—</div>
+        <div class="context-progress">
+          <div class="pbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="ctxBarBox">
+            <div class="pfill" id="ctxBar" style="width:0%"></div>
+          </div>
+          <span class="pcount" id="ctxText">0 / 0 人</span>
+        </div>
+      </div>
+
+      <div class="record-area">
         <button id="recBtn" class="btn-rec" type="button">
           <span class="rec-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -439,6 +703,151 @@ let currentCol = "第一单元";
 let currentSheet = "";
 let SHEETS = [];
 
+// ---------- 自定义下拉组件（ARIA listbox 模式） ----------
+class CustomSelect {
+  constructor(root, { placeholder = "请选择", onChange = () => {} } = {}) {
+    this.root = root;
+    this.trigger = root.querySelector(".cselect-trigger");
+    this.label = root.querySelector(".cselect-label");
+    this.menu = root.querySelector(".cselect-menu");
+    this.placeholder = placeholder;
+    this.onChange = onChange;
+    this.options = [];
+    this.value = "";
+
+    this.trigger.addEventListener("click", () => this.toggle());
+    this.trigger.addEventListener("keydown", (e) => this._onTriggerKey(e));
+    // 点击下拉外部时关闭
+    document.addEventListener("click", (e) => {
+      if (!this.root.contains(e.target)) this.close();
+    });
+  }
+
+  setOptions(options, value) {
+    this.options = options || [];
+    this.menu.innerHTML = "";
+    this.options.forEach((opt, i) => {
+      const li = document.createElement("li");
+      li.className = "cselect-option";
+      li.setAttribute("role", "option");
+      li.setAttribute("data-value", opt);
+      li.tabIndex = -1;
+      const text = document.createElement("span");
+      text.className = "cselect-opt-text";
+      text.textContent = opt;
+      const check = document.createElement("span");
+      check.className = "cselect-check";
+      check.setAttribute("aria-hidden", "true");
+      check.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m20 6-11 11-5-5"/></svg>';
+      li.append(text, check);
+      li.addEventListener("click", () => this._choose(i));
+      li.addEventListener("keydown", (e) => this._onMenuKey(e, i));
+      li.addEventListener("mousemove", () => this._setActive(i));
+      this.menu.appendChild(li);
+    });
+    this._setValue(value || "", true);
+  }
+
+  getValue() { return this.value; }
+
+  _setValue(value, silent = false) {
+    this.value = value;
+    const idx = this.options.indexOf(value);
+    this.label.textContent = value || this.placeholder;
+    this.label.classList.toggle("empty", !value);
+    Array.from(this.menu.children).forEach((li, i) => {
+      const sel = i === idx;
+      li.classList.toggle("selected", sel);
+      li.setAttribute("aria-selected", sel ? "true" : "false");
+    });
+    if (!silent) this.onChange(this.value);
+  }
+
+  _choose(index) {
+    if (index < 0 || index >= this.options.length) return;
+    const v = this.options[index];
+    if (v !== this.value) this._setValue(v); // 值变化才触发 onChange
+    this.close();
+    this.trigger.focus();
+  }
+
+  open() {
+    if (this.root.classList.contains("open")) return;
+    this.root.classList.add("open");
+    this.trigger.setAttribute("aria-expanded", "true");
+    const idx = this.options.indexOf(this.value);
+    this._setActive(idx >= 0 ? idx : 0);
+    const active = this.menu.querySelector(".cselect-option.active");
+    if (active) active.focus();
+  }
+
+  close() {
+    if (!this.root.classList.contains("open")) return;
+    this.root.classList.remove("open");
+    this.trigger.setAttribute("aria-expanded", "false");
+  }
+
+  toggle() { this.root.classList.contains("open") ? this.close() : this.open(); }
+
+  _setActive(index) {
+    const items = Array.from(this.menu.children);
+    if (index < 0 || index >= items.length) return;
+    this.activeIndex = index;
+    items.forEach((li, i) => li.classList.toggle("active", i === index));
+  }
+
+  _onTriggerKey(e) {
+    const k = e.key;
+    if (k === "Enter" || k === " " || k === "ArrowDown" || k === "ArrowUp") {
+      e.preventDefault();
+      this.open();
+      const items = Array.from(this.menu.children);
+      const cur = this.activeIndex;
+      if (k === "ArrowDown") {
+        const next = Math.min(cur + 1, items.length - 1);
+        this._setActive(next);
+        if (items[next]) items[next].focus();
+      } else if (k === "ArrowUp") {
+        const next = Math.max(cur - 1, 0);
+        this._setActive(next);
+        if (items[next]) items[next].focus();
+      }
+    } else if (k === "Escape") {
+      this.close();
+    }
+  }
+
+  _onMenuKey(e, index) {
+    const items = Array.from(this.menu.children);
+    const n = items.length;
+    let next = -1;
+    switch (e.key) {
+      case "ArrowDown": next = (index + 1) % n; e.preventDefault(); break;
+      case "ArrowUp": next = (index - 1 + n) % n; e.preventDefault(); break;
+      case "Home": next = 0; e.preventDefault(); break;
+      case "End": next = n - 1; e.preventDefault(); break;
+      case "Enter":
+      case " ": e.preventDefault(); this._choose(index); return;
+      case "Escape":
+        e.preventDefault(); this.close(); this.trigger.focus(); return;
+      case "Tab": this.close(); return;
+      default: return;
+    }
+    this._setActive(next);
+    if (items[next]) items[next].focus();
+  }
+}
+
+// 两个下拉实例：班级 / 成绩列
+const sheetSel = new CustomSelect(document.getElementById("sheet"), {
+  placeholder: "请选择班级",
+  onChange: (v) => { currentSheet = v; renderSheetTitle(); loadStudents(); }
+});
+const colSel = new CustomSelect(document.getElementById("col"), {
+  placeholder: "请选择成绩列",
+  onChange: (v) => { currentCol = v; render(); }
+});
+
 // 表格标题 = 当前选中的 Excel sheet 名
 function renderSheetTitle() {
   const el = document.getElementById("sheetTitle");
@@ -451,27 +860,11 @@ async function init() {
   const d = await r.json();
   SHEETS = d.sheets || [];
   currentSheet = d.sheet;
-  const sheetSel = document.getElementById("sheet");
-  sheetSel.innerHTML = "";
-  SHEETS.forEach(s => {
-    const o = document.createElement("option");
-    o.value = s; o.textContent = s;
-    if (s === currentSheet) o.selected = true;
-    sheetSel.appendChild(o);
-  });
-  sheetSel.onchange = () => { currentSheet = sheetSel.value; renderSheetTitle(); loadStudents(); };
+  sheetSel.setOptions(SHEETS, currentSheet);
   COLS.length = 0;
   COLS.push(...d.cols);
   currentCol = d.default_col;
-  const sel = document.getElementById("col");
-  sel.innerHTML = "";
-  COLS.forEach(c => {
-    const o = document.createElement("option");
-    o.value = c; o.textContent = c;
-    if (c === currentCol) o.selected = true;
-    sel.appendChild(o);
-  });
-  sel.onchange = () => { currentCol = sel.value; render(); };
+  colSel.setOptions(COLS, currentCol);
   students = d.students;
   renderSheetTitle();
   render();
@@ -517,6 +910,29 @@ function render(highlightSeq) {
     const hit = tbody.querySelector("tr.hit");
     if (hit) hit.scrollIntoView({ behavior: "smooth", block: "center" });
   }
+  updateContext();
+}
+
+// 更新左栏「当前录入」上下文卡：班级、成绩列、该列已录入进度
+function updateContext() {
+  const col = document.getElementById("ctxCol");
+  if (col) col.textContent = currentCol || "—";
+  const total = students.length;
+  let filled = 0;
+  students.forEach(s => {
+    const v = s.scores[currentCol];
+    if (v !== undefined && v !== null && String(v).trim() !== "") filled++;
+  });
+  const pct = total ? Math.round(filled / total * 100) : 0;
+  const bar = document.getElementById("ctxBar");
+  const text = document.getElementById("ctxText");
+  const box = document.getElementById("ctxBarBox");
+  if (bar) bar.style.width = pct + "%";
+  if (text) text.textContent = `已录入 ${filled} / ${total} 人`;
+  if (box) {
+    box.setAttribute("aria-valuenow", pct);
+    box.setAttribute("aria-valuetext", `${filled} / ${total} 人`);
+  }
 }
 
 function setStatus(cls, msg) {
@@ -551,8 +967,8 @@ async function doParse(text) {
 
 async function doApply(d) {
   pendingScore = d.score; pendingSeq = d.seq;
-  const verb = d.is_direct ? "直接设定" : `计算 ${d.expression} = `;
-  setStatus("busy", `正在写入：${d.seq}号 ${d.student.name} 的「${currentCol}」= ${d.score}（${verb}${d.score}）…`);
+  const proc = d.is_direct ? `直接设定 ${d.score}` : `${d.expression} = ${d.score}`;
+  setStatus("busy", `正在写入：${d.seq}号 ${d.student.name}「${currentCol}」= ${d.score}\n${proc}…`);
   try {
     const r = await fetch("/api/apply", {
       method:"POST", headers:{"Content-Type":"application/json"},
@@ -564,8 +980,7 @@ async function doApply(d) {
     const i = students.findIndex(s => s.seq === d.seq);
     if (i >= 0) students[i] = dd.student;
     render(d.seq);
-    const verb2 = d.is_direct ? "直接设定" : `计算 ${d.expression} = `;
-    setStatus("ok", `已写入：${d.seq}号 ${dd.student.name} 「${currentCol}」= ${dd.student.scores[currentCol]}（${verb2}${d.score}）`);
+    setStatus("ok", `${d.seq}号 ${dd.student.name}「${currentCol}」= ${dd.student.scores[currentCol]}\n${proc}`);
   } catch(e) { setStatus("err","网络错误：" + e.message); }
 }
 

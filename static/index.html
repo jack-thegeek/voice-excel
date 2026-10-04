@@ -456,28 +456,37 @@
     min-height: 38px;
     white-space: pre-line;
   }
-  /* 状态点：与第一行文字垂直居中对齐，多行时不居中夹缝 */
-  .status::before {
-    content: "";
-    width: 8px;
-    height: 8px;
-    flex: 0 0 8px;
-    margin-top: 6px;
-    border-radius: 50%;
-    background: currentColor;
-  }
+  /* 状态点已移除（::before 不再使用） */
   .status.idle  { background: #f1f5f9; color: #475569; border-color: #e2e8f0; }
   .status.ok    { background: var(--success-soft); color: #15803d; border-color: #bbf7d0; }
   .status.warn  { background: var(--warning-soft); color: #b45309; border-color: #fde68a; }
   .status.err   { background: var(--danger-soft);  color: #b91c1c; border-color: #fecaca; }
   .status.busy { background: var(--primary-soft); color: #1d4ed8; border-color: #bfdbfe; }
-  .status.busy::before {
-    background: transparent;
-    border: 2px solid currentColor;
-    border-top-color: transparent;
-    animation: spin .8s linear infinite;
+  /* 信息区：消息 + 成绩/表达式详情（左侧统一 14px） */
+  .status-info { flex: 1; min-width: 0; font-size: 14px; }
+  .status-detail {
+    margin-top: 2px;
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 6px;
   }
-  @keyframes spin { to { transform: rotate(360deg); } }
+  /* 计算过程正常显示，结果加粗 */
+  .status-detail .score { font-weight: bold; }
+  .status-detail .sep   { opacity: .5; }
+  .status-detail .expr  { }
+  /* 成绩等级徽章：大号，固定右侧 */
+  .grade-badge {
+    flex: 0 0 auto;
+    align-self: center;
+    padding: 1px 16px;
+    border-radius: 999px;
+    font-size: 30px;
+    font-weight: bold;
+    line-height: 1.4;
+    letter-spacing: 1px;
+    opacity: .92;
+  }
 
   /* ---------- 表格 ---------- */
   .scroller {
@@ -935,10 +944,66 @@ function updateContext() {
   }
 }
 
-function setStatus(cls, msg) {
+// 分数 -> 等级映射
+// 90≤score≤100:A+ / 85≤score<90:A / 75≤score<85:B+ / 60≤score<75:B / score<60:C
+function gradeOf(score) {
+  const n = Number(score);
+  if (!Number.isFinite(n)) return "";
+  if (n >= 90) return "A+";
+  if (n >= 85) return "A";
+  if (n >= 75) return "B+";
+  if (n >= 60) return "B";
+  return "C";
+}
+
+function setStatus(cls, msg, detail) {
   const el = document.getElementById("status");
   el.className = "status " + cls;
-  el.textContent = msg;
+  el.textContent = "";
+
+  // 左侧信息区：主消息 + 成绩/表达式详情
+  const info = document.createElement("div");
+  info.className = "status-info";
+
+  const text = document.createElement("div");
+  text.className = "status-text";
+  text.textContent = msg;
+  info.appendChild(text);
+
+  if (detail && detail.score !== undefined && detail.score !== null && String(detail.score).trim() !== "") {
+    const row = document.createElement("div");
+    row.className = "status-detail";
+
+    // 计算过程（直接设定时无算式，仅提示文字）
+    if (detail.expr) {
+      const expr = document.createElement("span");
+      expr.className = "expr";
+      expr.textContent = detail.expr;
+      row.appendChild(expr);
+
+      const sep = document.createElement("span");
+      sep.className = "sep";
+      sep.textContent = detail.expr === "直接设定" ? " " : " = ";
+      row.appendChild(sep);
+    }
+
+    // 结果加粗
+    const score = document.createElement("span");
+    score.className = "score";
+    score.textContent = detail.score;
+    row.appendChild(score);
+
+    info.appendChild(row);
+  }
+  el.appendChild(info);
+
+  // 右侧大号等级徽章
+  if (detail && detail.grade) {
+    const badge = document.createElement("span");
+    badge.className = "grade-badge";
+    badge.textContent = detail.grade;
+    el.appendChild(badge);
+  }
 }
 
 // ---------- 解析 + 直接写入 ----------
@@ -957,7 +1022,11 @@ async function doParse(text) {
     if (!r.ok) { setStatus("err", d.detail || "内容无法识别"); return; }
     // 解析成功：找不到学生 -> 报错；否则直接写入
     if (!d.student_found) {
-      setStatus("warn", `找不到 ${d.seq} 号学生，请确认序号后再试（结果为 ${d.is_direct ? "" : `${d.expression} = `}${d.score}）`);
+      setStatus("warn", `找不到 ${d.seq} 号学生，请确认序号后再试`, {
+        score: d.score,
+        expr: d.is_direct ? "直接设定" : d.expression,
+        grade: gradeOf(d.score)
+      });
       render(d.seq);
       return;
     }
@@ -967,8 +1036,12 @@ async function doParse(text) {
 
 async function doApply(d) {
   pendingScore = d.score; pendingSeq = d.seq;
-  const proc = d.is_direct ? `直接设定 ${d.score}` : `${d.expression} = ${d.score}`;
-  setStatus("busy", `正在写入：${d.seq}号 ${d.student.name}「${currentCol}」= ${d.score}\n${proc}…`);
+  const detail = {
+    score: d.score,
+    expr: d.is_direct ? "直接设定" : d.expression,
+    grade: gradeOf(d.score)
+  };
+  setStatus("busy", `正在写入：${d.seq}号 ${d.student.name}「${currentCol}」`, detail);
   try {
     const r = await fetch("/api/apply", {
       method:"POST", headers:{"Content-Type":"application/json"},
@@ -980,7 +1053,9 @@ async function doApply(d) {
     const i = students.findIndex(s => s.seq === d.seq);
     if (i >= 0) students[i] = dd.student;
     render(d.seq);
-    setStatus("ok", `${d.seq}号 ${dd.student.name}「${currentCol}」= ${dd.student.scores[currentCol]}\n${proc}`);
+    detail.score = dd.student.scores[currentCol];
+    detail.grade = gradeOf(detail.score);
+    setStatus("ok", `${d.seq}号 ${dd.student.name}「${currentCol}」`, detail);
   } catch(e) { setStatus("err","网络错误：" + e.message); }
 }
 

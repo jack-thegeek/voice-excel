@@ -307,10 +307,10 @@
     color: var(--primary-hover);
     font-weight: 700;
   }
-  tr.hit td { background: #fef3c7 !important; }
+  tr.hit td { background: #dcfce7 !important; }
   tr.hit { animation: flashRow 1.6s ease-out; }
   @keyframes flashRow {
-    0% { background-color: #fde68a !important; }
+    0% { background-color: #bbf7d0 !important; }
     100% { background-color: transparent; }
   }
 
@@ -325,7 +325,7 @@
   }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
   .legend .lg-col { background: var(--primary-soft); border: 1px solid #93c5fd; }
-  .legend .lg-hit { background: #fef3c7; border: 1px solid #fcd34d; }
+  .legend .lg-hit { background: #dcfce7; border: 1px solid #86efac; }
 
   /* ---------- 页脚 ---------- */
   .footer {
@@ -398,17 +398,14 @@
       </div>
 
       <div class="input-row">
-        <input id="textInput" type="text" placeholder="例如：2号 100-2-8等于几" />
+        <input id="textInput" type="text" placeholder="例：2号 100-2-8等于几" />
         <button id="parseBtn" class="btn-pri" type="button">写入</button>
       </div>
 
-      <div id="status" class="status idle" role="status" aria-live="polite">已就绪，可以开始录入了。</div>
+      <div id="status" class="status idle" role="status" aria-live="polite">已就绪，可以开始录入</div>
 
       <div class="tips">
-        <span><code>2号 100-2-8等于几</code></span>
-        <span><code>15号 100减2减8等于</code></span>
-        <span><code>7号 87.5</code>（直接设定）</span>
-        <span>说「等于」即自动结束并写入</span>
+        <span>说「等于、等于几、等于多少」即自动结束并写入</span>
       </div>
 
       <div class="footer">自动保存到成绩表.xlsx</div>
@@ -489,7 +486,7 @@ async function loadStudents() {
     if (!r.ok) { setStatus("err", d.detail || "加载失败"); return; }
     students = d.students;
     render();
-    setStatus("idle", "已就绪，可以开始录入了。");
+    setStatus("idle", "已就绪，可以开始录入");
   } catch(e) { setStatus("err", "网络错误：" + e.message); }
 }
 

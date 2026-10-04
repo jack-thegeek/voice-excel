@@ -1219,6 +1219,8 @@ async function startAsr() {
       if (all) {
         await doParse(all);
         if (!manualStop) scheduleContinuousRestart();
+      } else {
+        setStatus("idle", "未识别到内容，已就绪，可以开始录入");
       }
       manualStop = false;
       return;
@@ -1236,7 +1238,8 @@ async function startAsr() {
       inp.value = accumulated;
       normalizeHao(inp);
       if (TRIGGERS.some(k => accumulated.includes(k))) {
-        // 触发结束
+        // 触发结束：更新提示并让后端 flush 识别尾部
+        setStatus("busy", "正在识别最后内容…");
         try { asrWs.send(JSON.stringify({action:"stop"})); } catch(e) {}
       }
     }
@@ -1280,6 +1283,7 @@ function toggleRecording() {
   if (recognizing) {
     // 手动停止：发 stop 让后端 flush；标记为手动结束，之后不再自动重听
     manualStop = true;
+    setStatus("busy", "正在识别最后内容…");
     try { asrWs && asrWs.send(JSON.stringify({action:"stop"})); } catch(e) {}
     return;
   }

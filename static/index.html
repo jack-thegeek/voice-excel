@@ -495,6 +495,9 @@
     opacity: .92;
   }
 
+  /* ---------- 最近记录：复用 status 样式，成功录入时在此固定显示 ---------- */
+  .hidden { display: none !important; }
+
   /* ---------- 表格 ---------- */
   .scroller {
     overflow: auto;
@@ -707,6 +710,8 @@
       </div>
 
       <div id="status" class="status idle" role="status" aria-live="polite">已就绪，可以开始录入</div>
+
+      <div id="lastRecord" class="status ok hidden" role="status" aria-live="polite"></div>
 
       <div class="tips">
         <span>按「空格」开始 / 结束语音录入</span>
@@ -1016,8 +1021,8 @@ function gradeOf(score) {
   return "C";
 }
 
-function setStatus(cls, msg, detail) {
-  const el = document.getElementById("status");
+// 通用状态框构造：供 div#status 与「最近记录」共用，保证两者样式一致
+function buildStatus(el, cls, msg, detail) {
   el.className = "status " + cls;
   el.textContent = "";
 
@@ -1064,6 +1069,10 @@ function setStatus(cls, msg, detail) {
     badge.textContent = detail.grade;
     el.appendChild(badge);
   }
+}
+
+function setStatus(cls, msg, detail) {
+  buildStatus(document.getElementById("status"), cls, msg, detail);
 }
 
 // ---------- 解析 + 直接写入 ----------
@@ -1115,8 +1124,28 @@ async function doApply(d) {
     render(d.seq);
     detail.score = dd.student.scores[currentCol];
     detail.grade = gradeOf(detail.score);
-    setStatus("ok", `${d.seq}号 ${dd.student.name}「${currentCol}」`, detail);
+    // 成功详情统一在「最近记录」固定显示，状态栏恢复就绪
+    setStatus("idle", "已写入，可继续录入");
+    renderLastRecord({
+      seq: d.seq,
+      name: dd.student.name,
+      expr: detail.expr,
+      score: detail.score,
+      grade: detail.grade
+    });
   } catch(e) { setStatus("err","网络错误：" + e.message); }
+}
+
+// 更新「最近记录」：复用 status 样式，固定显示最近一次成功录入的结果
+function renderLastRecord(d) {
+  const el = document.getElementById("lastRecord");
+  if (!el) return;
+  el.classList.remove("hidden");
+  buildStatus(el, "ok", `${d.seq}号 ${d.name}「${currentCol}」`, {
+    score: d.score,
+    expr: d.expr,
+    grade: d.grade
+  });
 }
 
 // ---------- 语音识别（FunASR WebSocket 流式） ----------

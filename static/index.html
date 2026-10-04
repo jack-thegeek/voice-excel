@@ -709,6 +709,7 @@
       <div id="status" class="status idle" role="status" aria-live="polite">已就绪，可以开始录入</div>
 
       <div class="tips">
+        <span>按「空格」开始 / 结束语音录入</span>
         <span>说「等于、等于几、等于多少」即自动结束并写入</span>
       </div>
 
@@ -1274,7 +1275,8 @@ async function startMic() {
   wsProc.connect(wsCtx.destination); // 必须 connect 才会触发 onaudioprocess
 }
 
-recBtn.onclick = () => {
+// 切换录音：正在聆听则手动结束，否则开始聆听
+function toggleRecording() {
   if (recognizing) {
     // 手动停止：发 stop 让后端 flush；标记为手动结束，之后不再自动重听
     manualStop = true;
@@ -1282,7 +1284,17 @@ recBtn.onclick = () => {
     return;
   }
   startAsr();
-};
+}
+recBtn.onclick = toggleRecording;
+
+// 空格键快捷录音：焦点不在输入框/按钮/下拉等交互控件上时，按空格开始或结束聆听
+document.addEventListener("keydown", (e) => {
+  if (e.code !== "Space" && e.key !== " ") return;
+  const t = e.target;
+  if (t && t.closest && t.closest("input, textarea, select, button, .cselect, [contenteditable]")) return;
+  e.preventDefault(); // 避免触发页面滚动等默认行为
+  toggleRecording();
+});
 
 document.getElementById("parseBtn").onclick = () => doParse(document.getElementById("textInput").value);
 

@@ -10,7 +10,7 @@
 
 - **包管理**：uv
 - **后端**：FastAPI + uvicorn（ASGI）
-- **语音识别**：FunASR `paraformer-zh-streaming`（本机 Python 加载，16kHz 流式，600ms 出字粒度，纯 CPU 实时 RTF 0.1-0.5）
+- **语音识别**：Windows 默认使用 `Windows.Media.SpeechRecognition` 连续识别；不可用时自动回退到 FunASR `paraformer-zh-streaming`
 - **Excel**：openpyxl
 - **前端**：单页 HTML，AudioContext + WebSocket 流式推送 PCM
 
@@ -71,7 +71,7 @@ Excel 结构：
 .venv/bin/python main.py
 ```
 
-启动后自动打开浏览器 http://127.0.0.1:8765/
+启动后自动打开浏览器 http://127.0.0.1:8899/
 
 首次启动会后台下载 FunASR 模型（约 849 MB）到 `~/.cache/modelscope/`，之后从缓存加载约 2 秒。
 
@@ -94,6 +94,27 @@ Excel 结构：
 - 模型文件：849 MB（磁盘）
 - 运行内存：约 3.1 GB（PyTorch + 模型常驻）
 - 推理：CPU，RTF 0.1-0.5，无需 GPU
+
+## 打包（可选）
+
+把主程序打成 onedir 文件夹、模型打成独立 zip：
+
+```bash
+# 首次需安装打包工具
+uv pip install pyinstaller pyinstaller-hooks-contrib
+
+# 一键打包（跑 PyInstaller + 生成模型 zip + 复制模板 + 写说明）
+.venv/Scripts/python.exe build.py
+```
+
+产物在 `dist/`：
+
+- `dist/voice-excel/` —— 主程序（`voice-excel.exe` + `_internal/` 依赖）
+- `dist/funasr_model.zip` —— 语音模型（单文件，放在 exe 同目录或其父目录即自动解压加载）
+- `dist/使用说明.txt`
+
+模型查找顺序：环境变量 `FUNASR_MODEL_DIR` → exe 同目录或父目录的 `funasr_model/` →
+exe 同目录或父目录的 `funasr_model.zip` → 联网下载。打包后无需安装 Python。
 
 ## 许可
 

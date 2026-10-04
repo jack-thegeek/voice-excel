@@ -3,12 +3,25 @@ from __future__ import annotations
 
 import os
 import shutil
+import sys
 from dataclasses import dataclass
 from typing import Optional
 
 import openpyxl
 
-EXCEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "成绩表.xlsx")
+
+def _app_dir() -> str:
+    """应用根目录：打包后为可执行文件所在目录，源码运行时为本文件所在目录。"""
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def excel_path() -> str:
+    """成绩表文件绝对路径（始终位于 exe/脚本 同目录）。"""
+    return os.path.join(_app_dir(), "成绩表.xlsx")
+
+
 # 兼容旧代码：仍暴露常量，但实际不再写死，按 sheet_name 动态选择
 SHEET_NAME = "班级成绩登记表"
 
@@ -47,9 +60,10 @@ class Student:
 
 
 def _load(sheet_name: Optional[str] = None) -> tuple[openpyxl.Workbook, openpyxl.worksheet.worksheet.Worksheet]:
-    if not os.path.exists(EXCEL_PATH):
-        raise ExcelError(f"找不到成绩表: {EXCEL_PATH}")
-    wb = openpyxl.load_workbook(EXCEL_PATH)
+    path = excel_path()
+    if not os.path.exists(path):
+        raise ExcelError(f"找不到成绩表: {path}")
+    wb = openpyxl.load_workbook(path)
     # 未指定 sheet 时用第一个
     if sheet_name is None:
         sheet_name = wb.sheetnames[0] if wb.sheetnames else None
@@ -60,9 +74,10 @@ def _load(sheet_name: Optional[str] = None) -> tuple[openpyxl.Workbook, openpyxl
 
 def list_sheets() -> list[str]:
     """返回 Excel 中所有 sheet 名（每个 sheet 对应一个班级）。"""
-    if not os.path.exists(EXCEL_PATH):
-        raise ExcelError(f"找不到成绩表: {EXCEL_PATH}")
-    wb = openpyxl.load_workbook(EXCEL_PATH, read_only=True)
+    path = excel_path()
+    if not os.path.exists(path):
+        raise ExcelError(f"找不到成绩表: {path}")
+    wb = openpyxl.load_workbook(path, read_only=True)
     return list(wb.sheetnames)
 
 
@@ -108,10 +123,11 @@ def update_score(seq: int, col_name: str, new_value, sheet_name: Optional[str] =
     ws.cell(target_row, col_idx).number_format = "General"
 
     # 备份原文件一次（首次写入时）
-    bak = EXCEL_PATH + ".bak"
+    path = excel_path()
+    bak = path + ".bak"
     if not os.path.exists(bak):
-        shutil.copy2(EXCEL_PATH, bak)
-    wb.save(EXCEL_PATH)
+        shutil.copy2(path, bak)
+    wb.save(path)
 
     # 返回最新数据
     return find_student(seq, sheet_name)  # type: ignore[return-value]

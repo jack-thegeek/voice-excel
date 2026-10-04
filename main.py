@@ -22,7 +22,7 @@ from pydantic import BaseModel
 
 import asr
 import excel_editor
-from parser import parse as parse_text
+from parser import parse as parse_text, normalize_text
 
 
 def _resource_dir() -> str:
@@ -228,6 +228,7 @@ async def ws_asr(ws: WebSocket) -> None:
         await ws.send_json({"status": "ready", "engine": "funasr"})
 
         cache = asr.new_cache()
+        full_text = ""          # 累计的原始识别文本，用于做全文归一化
         buf = bytearray()
         while True:
             msg = await ws.receive()
@@ -242,7 +243,9 @@ async def ws_asr(ws: WebSocket) -> None:
                         text = await asyncio.to_thread(asr.recognize_chunk, bytes(buf), cache, True)
                         buf.clear()
                         if text:
-                            await ws.send_json({"text": text, "final": True})
+                            full_text += text
+                    if full_text:
+                        await ws.send_json({"text": normalize_text(full_text), "final": True})
                     await ws.send_json({"status": "done"})
                     break
                 continue
@@ -256,7 +259,8 @@ async def ws_asr(ws: WebSocket) -> None:
                 del buf[:asr.CHUNK_BYTES]
                 text = await asyncio.to_thread(asr.recognize_chunk, chunk, cache, False)
                 if text:
-                    await ws.send_json({"text": text, "final": False})
+                    full_text += text
+                    await ws.send_json({"text": normalize_text(full_text), "final": False})
     except WebSocketDisconnect:
         return
     except Exception as e:

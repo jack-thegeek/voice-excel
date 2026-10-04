@@ -1260,9 +1260,9 @@ async function startAsr() {
       stopMic();
       return;
     }
-    // 增量文本
+    // 增量文本（后端已返回「累计的归一化全文」，直接覆盖即可）
     if (typeof d.text === "string" && d.text) {
-      accumulated += d.text;
+      accumulated = d.text;
       const inp = document.getElementById("textInput");
       inp.value = accumulated;
       normalizeHao(inp);

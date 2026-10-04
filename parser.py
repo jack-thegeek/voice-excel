@@ -93,6 +93,9 @@ _OP_MAP = {
     "减": "-", "减去": "-", "减掉": "-", "去": "-",
     "乘": "*", "乘以": "*", "乘上": "*",
     "除": "/", "除以": "/", "比": "/",  # "X比Y" 一般不用，这里保守
+    # 常见同音/近音字容错：ASR 常把「减/加」听成这些字
+    "剪": "-", "件": "-", "见": "-", "简": "-", "间": "-", "建": "-", "坚": "-", "检": "-",
+    "家": "+", "佳": "+",
 }
 # 等于关键词触发"计算模式"
 _EQ_MARKERS = ("等于几", "等于多少", "得多少", "得几", "等于啥", "是多少", "是几")
@@ -231,3 +234,41 @@ def _fmt_num(x: float) -> str:
     if x == int(x):
         return str(int(x))
     return f"{x:g}"
+
+
+# ---------- 识别文本归一化（ASR 输出 -> 阿拉伯数字 + 符号） ----------
+_CN_NUM_SPAN_RE = re.compile(r"[零〇一二两三四五六七八九十百]+")
+
+# 文本级归一化时要跳过的宽泛单字（否则容易误伤日常词，如"过去/比如"）
+_NORM_SKIP_OPS = {"去", "比"}
+
+
+def _cn_span_to_num(m: "re.Match") -> str:
+    """把一段连续中文数字转换为阿拉伯数字；解析失败则原样保留。"""
+    try:
+        return str(int(_cn2num(m.group(0))))
+    except ValueError:
+        return m.group(0)
+
+
+def normalize_text(raw: str) -> str:
+    """把 ASR 的中文识别文本归一化为「阿拉伯数字 + 运算符符号」。
+
+    用于后端流式识别结果的实时展示与解析前预处理，让用户直接看到
+    「2号 100-2-8 等于几」而不是「二号 一百减二减八 等于几」。
+    注意：本函数只做文本层替换，不改语义，最终计算仍由 parse() 完成。
+    """
+    if not raw:
+        return ""
+    s = raw
+    # 1) 中文数字片段 -> 阿拉伯数字
+    s = _CN_NUM_SPAN_RE.sub(_cn_span_to_num, s)
+    # 2) 中文运算符 -> 符号（含同音字容错；按长度从长到短，跳过宽泛单字）
+    for cn in sorted(_OP_MAP, key=len, reverse=True):
+        if cn in _NORM_SKIP_OPS:
+            continue
+        s = s.replace(cn, _OP_MAP[cn])
+    # 3) 全角运算符、小数点的"点"
+    s = s.replace("＋", "+").replace("－", "-").replace("×", "*").replace("÷", "/").replace("✕", "*")
+    s = s.replace("点", ".")
+    return s

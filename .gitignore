@@ -26,3 +26,6 @@ dist/
 
 # Agent 工具配置与 skills（本地目录，不入库）
 .opencode/
+
+# 运行时调试日志
+debug.log

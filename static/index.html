@@ -274,6 +274,13 @@
   .cselect-check svg { display: block; width: 100%; height: 100%; }
   .cselect-option.selected .cselect-check { opacity: 1; }
 
+  /* ---------- 字段提示（识别模式等） ---------- */
+  .field-hint {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+
   /* ---------- 按钮 ---------- */
   button {
     font-family: inherit;
@@ -639,6 +646,30 @@
             <ul class="cselect-menu" id="colMenu" role="listbox" aria-labelledby="colLabel"></ul>
           </div>
         </div>
+        <div class="field">
+          <label id="recModeLabel" for="recModeTrigger">识别模式</label>
+          <div class="cselect" id="recMode">
+            <button class="cselect-trigger" id="recModeTrigger" type="button"
+                    aria-haspopup="listbox" aria-expanded="false" aria-controls="recModeMenu" aria-labelledby="recModeLabel">
+              <span class="cselect-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M17 1 21 5l-4 4"/>
+                  <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+                  <path d="m7 23-4-4 4-4"/>
+                  <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+                </svg>
+              </span>
+              <span class="cselect-label empty">请选择识别模式</span>
+              <span class="cselect-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m6 9 6 6 6-6"/>
+                </svg>
+              </span>
+            </button>
+            <ul class="cselect-menu" id="recModeMenu" role="listbox" aria-labelledby="recModeLabel"></ul>
+          </div>
+          <span class="field-hint">连续识别：写入后自动继续聆听，无需重复点击录音按钮</span>
+        </div>
       </div>
 
       <div class="context" aria-label="当前录入进度">
@@ -711,6 +742,9 @@ let students = [];
 let currentCol = "第一单元";
 let currentSheet = "";
 let SHEETS = [];
+let continuousMode = true;    // 是否连续识别（默认连续）
+let contRestartTimer = null;  // 自动重新聆听的定时器
+let manualStop = false;       // 本次是否由用户手动点击结束（手动结束时不再自动重听）
 
 // ---------- 自定义下拉组件（ARIA listbox 模式） ----------
 class CustomSelect {
@@ -856,6 +890,31 @@ const colSel = new CustomSelect(document.getElementById("col"), {
   placeholder: "请选择成绩列",
   onChange: (v) => { currentCol = v; render(); }
 });
+
+// ---------- 识别模式（单次 / 连续） ----------
+const REC_MODES = ["单次识别", "连续识别"];
+const recModeSel = new CustomSelect(document.getElementById("recMode"), {
+  placeholder: "请选择识别模式",
+  onChange: (v) => {
+    continuousMode = v === "连续识别";
+    try { localStorage.setItem("voiceExcel.continuous", continuousMode ? "1" : "0"); } catch(e) {}
+    if (!continuousMode) { clearTimeout(contRestartTimer); }
+  }
+});
+// 恢复上次选择的模式；未保存过时默认连续识别
+let savedMode = null;
+try { savedMode = localStorage.getItem("voiceExcel.continuous"); } catch(e) {}
+continuousMode = savedMode === null ? true : savedMode === "1";
+recModeSel.setOptions(REC_MODES, continuousMode ? "连续识别" : "单次识别");
+
+// 一次语音录入结束后（无论写入成功或失败），若开启连续识别则自动重新开始聆听
+function scheduleContinuousRestart() {
+  if (!continuousMode) return;
+  clearTimeout(contRestartTimer);
+  contRestartTimer = setTimeout(() => {
+    if (!recognizing && continuousMode) startAsr();
+  }, 1000);
+}
 
 // 表格标题 = 当前选中的 Excel sheet 名
 function renderSheetTitle() {
@@ -1030,7 +1089,7 @@ async function doParse(text) {
       render(d.seq);
       return;
     }
-    doApply(d);
+    await doApply(d);
   } catch(e) { setStatus("err","网络错误：" + e.message); }
 }
 
@@ -1124,6 +1183,7 @@ function setRecognizing(on) {
 
 async function startAsr() {
   if (recognizing) return;
+  manualStop = false;   // 新一轮监听，重置手动结束标记
   accumulated = "";
   document.getElementById("textInput").value = "";
   setStatus("busy", "正在连接语音识别服务…");
@@ -1155,7 +1215,11 @@ async function startAsr() {
       setRecognizing(false);
       stopMic();
       const all = document.getElementById("textInput").value;
-      if (all) doParse(all);
+      if (all) {
+        await doParse(all);
+        if (!manualStop) scheduleContinuousRestart();
+      }
+      manualStop = false;
       return;
     }
     if (d.error) {
@@ -1212,7 +1276,8 @@ async function startMic() {
 
 recBtn.onclick = () => {
   if (recognizing) {
-    // 手动停止：发 stop 让后端 flush
+    // 手动停止：发 stop 让后端 flush；标记为手动结束，之后不再自动重听
+    manualStop = true;
     try { asrWs && asrWs.send(JSON.stringify({action:"stop"})); } catch(e) {}
     return;
   }

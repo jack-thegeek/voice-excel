@@ -48,7 +48,7 @@ def get_engine(engine_id: str | None):
 
 
 def check_available(engine_id: str) -> tuple[bool, str]:
-    """依赖是否可用（带缓存，避免每次请求都 import 重库）。"""
+    """依赖是否可用（带缓存；只查包装没装、不 import 重库，见各引擎 available）。"""
     with _avail_lock:
         if engine_id not in _avail_cache:
             mod = ENGINES.get(engine_id)

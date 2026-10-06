@@ -20,6 +20,7 @@ SHERPA_MODEL_QUANT=fp32 使用 fp32 权重（约 825MB）。
 """
 from __future__ import annotations
 
+import importlib.util
 import os
 import shutil
 import sys
@@ -68,11 +69,18 @@ _download_lock = threading.Lock()
 
 
 def available() -> tuple[bool, str]:
-    """依赖（sherpa-onnx）是否已安装。"""
+    """依赖（sherpa-onnx）是否已安装。
+
+    只查包装没装、不真正 import（与 asr.available 一致）：import sherpa_onnx
+    会加载 onnxruntime 原生库，而我们只想低成本地回答"装没装"；真正切到
+    sherpa 时才 import 并构造识别器，届时有问题会报明确错误。
+    """
     try:
-        import sherpa_onnx  # noqa: F401
+        found = importlib.util.find_spec("sherpa_onnx") is not None
     except Exception as e:  # noqa: BLE001
-        return False, f"未安装 sherpa-onnx（{e}，可用 uv pip install sherpa-onnx 安装）"
+        return False, f"检查 sherpa-onnx 安装状态失败（{e}）"
+    if not found:
+        return False, "未安装 sherpa-onnx（uv pip install sherpa-onnx）"
     return True, ""
 
 

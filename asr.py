@@ -17,6 +17,7 @@
 """
 from __future__ import annotations
 
+import importlib.util
 import os
 import sys
 import threading
@@ -49,11 +50,19 @@ _lock = threading.Lock()
 
 
 def available() -> tuple[bool, str]:
-    """依赖（funasr + torch）是否已安装。"""
+    """依赖（funasr）是否已安装。
+
+    只查包装没装、不真正 import：import funasr 会连带把 torch/torchaudio
+    拉进来（数 GB、十几秒），默认只用 sherpa 时纯属白费，还会顺带打出
+    "ffmpeg is not installed" 之类与本功能无关的提示。真正切到 FunASR
+    时才 import，届时若有问题会在模型加载时报明确错误。
+    """
     try:
-        import funasr  # noqa: F401
+        found = importlib.util.find_spec("funasr") is not None
     except Exception as e:  # noqa: BLE001
-        return False, f"未安装 funasr（{e}）"
+        return False, f"检查 funasr 安装状态失败（{e}）"
+    if not found:
+        return False, "未安装 funasr（uv pip install funasr）"
     return True, ""
 
 

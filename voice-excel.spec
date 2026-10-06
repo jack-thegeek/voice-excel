@@ -7,7 +7,8 @@
 产物：
     dist/voice-excel/voice-excel.exe      主程序
     dist/voice-excel/_internal/           依赖与静态资源
-    dist/funasr_model.zip                 模型（由打包脚本单独生成，见 build.py）
+    dist/funasr_model.zip                 FunASR 模型（由打包脚本单独生成，见 build.py）
+    dist/sherpa_model.zip                 sherpa-onnx 模型（同上）
 """
 
 from PyInstaller.utils.hooks import collect_all
@@ -30,6 +31,20 @@ for pkg in ("funasr", "modelscope", "modelscope_hub", "kaldiio", "soundfile", "j
         hiddenimports += h
     except Exception as e:  # 单个包收集失败不应阻断整体
         print(f"[spec] collect_all({pkg}) failed: {e}")
+
+# sherpa-onnx：原生库（onnxruntime.dll / sherpa-onnx-c-api.dll / _sherpa_onnx...pyd）
+# 都在 sherpa_onnx/lib/ 下，collect_all 会把它们作为 binaries 收进来。
+try:
+    d, b, h = collect_all("sherpa_onnx")
+    datas += d
+    binaries += b
+    hiddenimports += h
+    print(f"[spec] collect_all(sherpa_onnx): binaries={len(b)}")
+except Exception as e:  # 没装 sherpa-onnx 也要能打包 FunASR 版
+    print(f"[spec] collect_all(sherpa_onnx) failed（未安装则忽略）: {e}")
+
+# 引擎注册表 + 两个引擎模块（asr_sherpa 依赖 sherpa_onnx，运行时才 import）
+hiddenimports += ["engines", "asr_sherpa"]
 
 # 常见动态导入兜底
 hiddenimports += [

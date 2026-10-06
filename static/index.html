@@ -673,6 +673,30 @@
           </div>
           <span class="field-hint">连续识别：写入后自动继续聆听，无需重复点击录音按钮</span>
         </div>
+        <div class="field">
+          <label id="engineLabel" for="engineTrigger">语音引擎</label>
+          <div class="cselect" id="engine">
+            <button class="cselect-trigger" id="engineTrigger" type="button"
+                    aria-haspopup="listbox" aria-expanded="false" aria-controls="engineMenu" aria-labelledby="engineLabel">
+              <span class="cselect-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+                  <path d="M19 10v1a7 7 0 0 1-14 0v-1"/>
+                  <line x1="12" y1="18" x2="12" y2="22"/>
+                  <line x1="8" y1="22" x2="16" y2="22"/>
+                </svg>
+              </span>
+              <span class="cselect-label empty">检测可用引擎…</span>
+              <span class="cselect-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m6 9 6 6 6-6"/>
+                </svg>
+              </span>
+            </button>
+            <ul class="cselect-menu" id="engineMenu" role="listbox" aria-labelledby="engineLabel"></ul>
+          </div>
+          <span class="field-hint">FunASR 精度高、占内存大；sherpa-onnx 轻量快速。切换后从下一次录音开始生效</span>
+        </div>
       </div>
 
       <div class="context" aria-label="当前录入进度">
@@ -913,6 +937,48 @@ try { savedMode = localStorage.getItem("voiceExcel.continuous"); } catch(e) {}
 continuousMode = savedMode === null ? true : savedMode === "1";
 recModeSel.setOptions(REC_MODES, continuousMode ? "连续识别" : "单次识别");
 
+// ---------- 语音引擎（FunASR / sherpa-onnx） ----------
+let engineList = [];        // /api/engines 返回的引擎（含可用性）
+let currentEngine = "";     // 当前选中的引擎 id（startAsr 时随 start 帧发给后端）
+const engineSel = new CustomSelect(document.getElementById("engine"), {
+  placeholder: "请选择语音引擎",
+  onChange: (label) => {
+    const e = engineList.find(x => x.label === label);
+    if (!e) return;
+    currentEngine = e.id;
+    // 注意：key 带版本号。默认引擎改为 sherpa 时旧 key 里可能存着上一版
+    // 的默认值 funasr，会让新默认失效，因此换 key 让新默认重新生效
+    // （用户手动重选后依然会记住，选一次即可）。
+    try { localStorage.setItem("voiceExcel.engine2", currentEngine); } catch(e) {}
+    if (!e.available) setStatus("err", `引擎「${e.name}」不可用：${e.note || "缺少依赖"}`);
+    else setStatus("idle", `已选择${e.name}，从下一次录音开始生效`);
+  }
+});
+
+// 拉取可用引擎并恢复上次选择；顺序：上次选择（可用）→ 后端默认引擎 → 任一可用引擎
+async function loadEngines() {
+  try {
+    const r = await fetch("/api/engines");
+    const d = await r.json();
+    engineList = (d.engines || []).map(e => ({
+      id: e.id, name: e.name, available: !!e.available, note: e.note || "",
+      label: e.name + (e.available ? "" : "（不可用）")
+    }));
+    let saved = null;
+    try { saved = localStorage.getItem("voiceExcel.engine2"); } catch(e) {}
+    const pick =
+      engineList.find(x => x.id === saved && x.available) ||
+      engineList.find(x => x.id === d.default && x.available) ||
+      engineList.find(x => x.available) ||
+      engineList[0];
+    currentEngine = pick ? pick.id : "";
+    engineSel.setOptions(engineList.map(x => x.label), pick ? pick.label : "");
+  } catch(e) {
+    // 接口异常：保持空列表，由后端按默认引擎处理
+    engineList = [];
+  }
+}
+
 // 一次语音录入结束后（无论写入成功或失败），若开启连续识别则自动重新开始聆听
 function scheduleContinuousRestart() {
   if (!continuousMode) return;
@@ -942,6 +1008,7 @@ async function init() {
   students = d.students;
   renderSheetTitle();
   render();
+  loadEngines();   // 语音引擎下拉不阻塞表格渲染
 }
 
 // 切换班级时只重载学生，不动列
@@ -1221,6 +1288,10 @@ async function startAsr() {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   asrWs = new WebSocket(`${proto}://${location.host}/ws/asr`);
   asrWs.binaryType = "arraybuffer";
+  // 连上后先把「开始 + 选中的语音引擎」发给后端（后端据此加载对应模型）
+  asrWs.onopen = () => {
+    try { asrWs.send(JSON.stringify({ action: "start", engine: currentEngine })); } catch(e) {}
+  };
 
   let micStarted = false;
   asrWs.onmessage = async (ev) => {
@@ -1240,7 +1311,13 @@ async function startAsr() {
       }
       return;
     }
-    if (d.status === "loading") { setStatus("busy", "语音识别模型首次加载中，约 10-30 秒，请稍候…"); return; }
+    if (d.status === "loading") {
+      const isSherpa = d.engine === "sherpa";
+      setStatus("busy", isSherpa
+        ? "正在加载语音识别模型（sherpa-onnx，约 240MB）…请稍候"
+        : "正在加载语音识别模型（FunASR，较大，约 10-30 秒）…请稍候");
+      return;
+    }
     if (d.status === "done") {
       setRecognizing(false);
       stopMic();

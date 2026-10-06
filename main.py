@@ -21,6 +21,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import asr
+import asr_sherpa  # noqa: F401  （注册引擎用）
+import engines
 import excel_editor
 from parser import parse as parse_text, normalize_text
 
@@ -79,52 +81,81 @@ def _venv_excepthook(args):  # threading.excepthook 签名
 threading.excepthook = _venv_excepthook
 
 
+def _preload_funasr_staged() -> None:
+    """FunASR 依赖较重（torch/numpy/scipy），分阶段导入写日志，便于定位冻结环境下的崩溃点。"""
+    _log("preload[a]: importing numpy ...")
+    import numpy as np
+    _log(f"preload[b]: numpy {np.__version__} OK")
+    _log("preload[c]: importing scipy ...")
+    import scipy  # noqa: F401
+    _log(f"preload[d]: scipy {scipy.__version__} OK")
+    _log("preload[e]: importing torch ...")
+    import torch
+    _log(f"preload[f]: torch {torch.__version__} OK, cuda={torch.cuda.is_available()}")
+    # 触发一次 tensor 运算（会用到 OpenMP）
+    _ = torch.zeros(4) @ torch.ones(4)
+    _log("preload[g]: torch matmul OK")
+    _log("preload[h]: importing torchaudio ...")
+    import torchaudio  # noqa: F401
+    _log("preload[i]: torchaudio OK")
+    _log("preload[j]: importing funasr ...")
+    import funasr  # noqa: F401
+    _log(f"preload[k]: funasr {getattr(funasr, '__version__', '?')} OK")
+    from funasr import AutoModel  # noqa: F401
+    _log("preload[l]: AutoModel symbol ready")
+    spec = asr._resolve_model_path()
+    _log(f"preload[m]: model spec = {spec}")
+    asr.load_model()
+    _log("preload[n]: AutoModel constructed OK")
+    _log("preload[o]: funasr model ready")
+
+
 def _preload_model_worker() -> None:
-    """后台加载模型，分阶段写日志，便于定位冻结环境下的崩溃点。"""
-    try:
-        _log("preload[a]: importing numpy ...")
-        import numpy as np
-        _log(f"preload[b]: numpy {np.__version__} OK")
-        _log("preload[c]: importing scipy ...")
-        import scipy  # noqa: F401
-        _log(f"preload[d]: scipy {scipy.__version__} OK")
-        _log("preload[e]: importing torch ...")
-        import torch
-        _log(f"preload[f]: torch {torch.__version__} OK, cuda={torch.cuda.is_available()}")
-        # 触发一次 tensor 运算（会用到 OpenMP）
-        _ = torch.zeros(4) @ torch.ones(4)
-        _log("preload[g]: torch matmul OK")
-        _log("preload[h]: importing torchaudio ...")
-        import torchaudio  # noqa: F401
-        _log("preload[i]: torchaudio OK")
-        _log("preload[j]: importing funasr ...")
-        import funasr  # noqa: F401
-        _log(f"preload[k]: funasr {getattr(funasr, '__version__', '?')} OK")
-        from funasr import AutoModel  # noqa: F401
-        _log("preload[l]: AutoModel symbol ready")
-        spec = asr._resolve_model_path()
-        _log(f"preload[m]: model spec = {spec}")
-        model = AutoModel(model=spec, disable_update=True)
-        _log("preload[n]: AutoModel constructed OK")
-        asr._model = model
-        _log("preload[o]: model ready")
-    except BaseException as e:  # noqa: BLE001
-        _log(f"preload EXC: {type(e).__name__}: {e}")
+    """后台依次预加载语音识别引擎（同一时刻只加载一个，避免内存峰值）。
+
+    默认只预加载默认引擎（sherpa）；FunASR 首次被选中时才按需加载。
+    见 engines.preload_order()，可用环境变量 PRELOAD_ENGINES 调整。
+    """
+    for engine_id in engines.preload_order():
+        mod = engines.get_engine(engine_id)
+        if mod is None:
+            _log(f"preload: 未知引擎 {engine_id}，跳过")
+            continue
+        if mod.ENGINE_ID != engine_id:
+            _log(f"preload: 默认引擎 {engine_id} 不可用，回退到 {mod.ENGINE_ID}")
+        ok, why = engines.check_available(mod.ENGINE_ID)
+        if not ok:
+            _log(f"preload: 引擎 {mod.ENGINE_ID} 不可用，跳过（{why}）")
+            continue
+        if mod.is_loaded():
+            _log(f"preload: 引擎 {mod.ENGINE_ID} 已加载")
+            continue
         try:
-            with open(DEBUG_LOG, "a", encoding="utf-8") as f:
-                _traceback.print_exc(file=f)
-        except Exception:
-            pass
+            _log(f"preload: 开始加载引擎 {mod.ENGINE_ID}（{mod.ENGINE_NAME}）…")
+            if mod is asr:
+                _preload_funasr_staged()
+            else:
+                mod.preload()
+            _log(f"preload: 引擎 {mod.ENGINE_ID} 就绪")
+        except BaseException as e:  # noqa: BLE001
+            _log(f"preload EXC[{mod.ENGINE_ID}]: {type(e).__name__}: {e}")
+            try:
+                with open(DEBUG_LOG, "a", encoding="utf-8") as f:
+                    _traceback.print_exc(file=f)
+            except Exception:
+                pass
 
 
 @app.on_event("startup")
 async def _preload_asr() -> None:
-    """启动时后台预加载 FunASR 模型，避免首次录音卡顿。"""
+    """启动时后台预加载语音识别引擎，避免首次录音卡顿。"""
     _log("startup hook fired")
     if os.environ.get("SKIP_MODEL_PRELOAD") == "1":
         _log("preload skipped (SKIP_MODEL_PRELOAD=1)")
-        return
-    threading.Thread(target=_preload_model_worker, daemon=True).start()
+    else:
+        threading.Thread(target=_preload_model_worker, daemon=True).start()
+    # 预热「引擎可用性」缓存（会在后台 import 引擎，避免 /api/engines 首个请求卡住）
+    threading.Thread(target=engines.check_all_available, daemon=True).start()
 
 
 class ParseReq(BaseModel):
@@ -157,6 +188,15 @@ def students(sheet: str | None = None):
         "students": [_student_to_dict(s) for s in excel_editor.list_students(cur)],
         "cols": list(excel_editor.SCORE_COLS.keys()),
         "default_col": excel_editor.DEFAULT_COL_NAME,
+    }
+
+
+@app.get("/api/engines")
+def api_engines():
+    """可选的语音识别引擎列表（含可用性，供前端下拉渲染）。"""
+    return {
+        "engines": engines.list_engines(),
+        "default": engines.DEFAULT_ENGINE_ID,
     }
 
 
@@ -201,35 +241,62 @@ def _student_to_dict(s) -> dict[str, Any]:
 # ---------- ASR WebSocket ----------
 @app.websocket("/ws/asr")
 async def ws_asr(ws: WebSocket) -> None:
-    """流式语音识别（FunASR）。
+    """流式语音识别（支持 FunASR / sherpa-onnx 多引擎，见 engines.py）。
 
     协议：
-      - 客户端发 JSON {"action":"start"}  开始会话（确认连接）
+      - 客户端连上后先发 JSON {"action":"start","engine":"sherpa"}
+        （engine 可省略，缺省用默认引擎 sherpa；sherpa 不可用时自动回退 FunASR）
       - 客户端发 binary frame            16kHz mono Int16 PCM chunk
       - 客户端发 JSON {"action":"stop"}   结束并 flush 尾部
     返回：
-      - JSON {"text":"增量文本","final":false}  每个出字粒度的增量
-      - JSON {"text":"尾部文本","final":true}   stop 后的最终增量
-      - JSON {"error":"..."}                    模型未就绪/推理失败
+      - JSON {"status":"loading","engine":...}   模型加载中
+      - JSON {"status":"ready","engine":...}     引擎就绪
+      - JSON {"text":"累计全文","final":false}    识别过程中的累计文本
+      - JSON {"text":"全文","final":true}         stop 后的最终全文
+      - JSON {"error":"..."}                      引擎不可用/推理失败
     """
     await ws.accept()
     try:
-        if asr._model is None:
-            await ws.send_json({"status": "loading"})
-            # 在后台线程加载，这里等待最多 ~120s
+        # 1) 首帧选择引擎（兼容老客户端：首帧直接是音频时并入缓冲区）
+        first = await ws.receive()
+        engine_id = engines.DEFAULT_ENGINE_ID
+        pending_audio = b""
+        if first.get("text"):
             try:
-                await asyncio.wait_for(asyncio.to_thread(asr.get_model), timeout=120)
+                payload = json.loads(first["text"])
+            except (TypeError, ValueError):
+                payload = {}
+            engine_id = payload.get("engine") or engine_id
+        elif first.get("bytes"):
+            pending_audio = first["bytes"]
+
+        mod = engines.get_engine(engine_id)
+        if mod is None:
+            await ws.send_json({"error": f"未知语音引擎：{engine_id}"})
+            await ws.close()
+            return
+        ok, why = engines.check_available(mod.ENGINE_ID)
+        if not ok:
+            await ws.send_json({"error": f"引擎不可用：{mod.ENGINE_NAME}（{why}）"})
+            await ws.close()
+            return
+
+        # 2) 按需加载模型（首次使用/未预加载时等待）
+        if not mod.is_loaded():
+            await ws.send_json({"status": "loading", "engine": mod.ENGINE_ID})
+            _log(f"ws/asr: 引擎 {mod.ENGINE_ID} 未预加载，按需加载中…")
+            try:
+                await asyncio.wait_for(asyncio.to_thread(mod.preload), timeout=300)
             except asyncio.TimeoutError:
                 await ws.send_json({"error": "模型加载超时"})
                 await ws.close()
                 return
-        else:
-            asr.get_model()  # 确保已加载
-        await ws.send_json({"status": "ready", "engine": "funasr"})
+        await ws.send_json({"status": "ready", "engine": mod.ENGINE_ID})
 
-        cache = asr.new_cache()
+        cache = mod.new_cache()
+        chunk_bytes = mod.CHUNK_BYTES
         full_text = ""          # 累计的原始识别文本，用于做全文归一化
-        buf = bytearray()
+        buf = bytearray(pending_audio)
         while True:
             msg = await ws.receive()
             if msg.get("text"):
@@ -240,10 +307,10 @@ async def ws_asr(ws: WebSocket) -> None:
                 if payload.get("action") == "stop":
                     # flush 尾部
                     if buf:
-                        text = await asyncio.to_thread(asr.recognize_chunk, bytes(buf), cache, True)
+                        text = await asyncio.to_thread(mod.recognize_chunk, bytes(buf), cache, True)
                         buf.clear()
                         if text:
-                            full_text += text
+                            full_text = text
                     if full_text:
                         await ws.send_json({"text": normalize_text(full_text), "final": True})
                     await ws.send_json({"status": "done"})
@@ -253,13 +320,13 @@ async def ws_asr(ws: WebSocket) -> None:
             if not data:
                 continue
             buf.extend(data)
-            # 攒满一个 chunk_size 就推一次
-            while len(buf) >= asr.CHUNK_BYTES:
-                chunk = bytes(buf[:asr.CHUNK_BYTES])
-                del buf[:asr.CHUNK_BYTES]
-                text = await asyncio.to_thread(asr.recognize_chunk, chunk, cache, False)
+            # 攒满一个 chunk 就推一次
+            while len(buf) >= chunk_bytes:
+                chunk = bytes(buf[:chunk_bytes])
+                del buf[:chunk_bytes]
+                text = await asyncio.to_thread(mod.recognize_chunk, chunk, cache, False)
                 if text:
-                    full_text += text
+                    full_text = text
                     await ws.send_json({"text": normalize_text(full_text), "final": False})
     except WebSocketDisconnect:
         return

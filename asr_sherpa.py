@@ -33,7 +33,7 @@ import numpy as np
 
 # ---------- 引擎标识与流式参数 ----------
 ENGINE_ID = "sherpa"
-ENGINE_NAME = "sherpa-onnx（Paraformer int8，轻量快速）"
+ENGINE_NAME = "sherpa-onnx"
 
 SAMPLE_RATE = 16000
 CHUNK_SAMPLES = 3200                     # 200ms

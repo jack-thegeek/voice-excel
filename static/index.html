@@ -137,7 +137,7 @@
   }
   .field-row {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 12px;
   }
   .field { display: flex; flex-direction: column; gap: 5px; }
@@ -356,7 +356,7 @@
   /* ---------- 当前录入上下文 ---------- */
   .context {
     margin-top: 12px;
-    padding: 12px 14px 13px;
+    padding: 8px 12px 9px;
     background: linear-gradient(135deg, #f3f7ff, var(--primary-soft));
     border: 1px solid #dbeafe;
     border-radius: var(--radius-sm);
@@ -374,8 +374,8 @@
     color: var(--muted);
   }
   .context-col {
-    margin-top: 3px;
-    font-size: 21px;
+    margin-top: 2px;
+    font-size: 18px;
     font-weight: 700;
     color: var(--text);
     line-height: 1.3;
@@ -387,7 +387,7 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-top: 9px;
+    margin-top: 7px;
   }
   .pbar {
     flex: 1;
@@ -458,7 +458,6 @@
     font-size: 13px;
     line-height: 1.55;
     border: 1px solid transparent;
-    min-height: 38px;
     white-space: pre-line;
   }
   /* 状态点已移除（::before 不再使用） */
@@ -494,6 +493,10 @@
   }
 
   /* ---------- 最近记录：复用 status 样式，成功录入时在此固定显示 ---------- */
+  /* 历史记录：固定 200px，内容与「最近记录」一致但不套状态样式 */
+  #history { height: 200px; flex: none; margin-top: 8px; overflow-y: auto; font-size: 13px; line-height: 1.7;
+             border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; }
+  .history-title { margin-top: 14px; }
   .hidden { display: none !important; }
 
   /* ---------- 表格 ---------- */
@@ -650,50 +653,52 @@
             </div>
           </div>
         </div>
-        <div class="field">
-          <label id="recModeLabel" for="recModeTrigger">识别模式</label>
-          <div class="cselect" id="recMode">
-            <button class="cselect-trigger" id="recModeTrigger" type="button"
-                    aria-haspopup="listbox" aria-expanded="false" aria-controls="recModeMenu" aria-labelledby="recModeLabel">
-              <span class="cselect-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M17 1 21 5l-4 4"/>
-                  <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
-                  <path d="m7 23-4-4 4-4"/>
-                  <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
-                </svg>
-              </span>
-              <span class="cselect-label empty">请选择识别模式</span>
-              <span class="cselect-arrow" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="m6 9 6 6 6-6"/>
-                </svg>
-              </span>
-            </button>
-            <ul class="cselect-menu" id="recModeMenu" role="listbox" aria-labelledby="recModeLabel"></ul>
+        <div class="field-row">
+          <div class="field">
+            <label id="recModeLabel" for="recModeTrigger">识别模式</label>
+            <div class="cselect" id="recMode">
+              <button class="cselect-trigger" id="recModeTrigger" type="button"
+                      aria-haspopup="listbox" aria-expanded="false" aria-controls="recModeMenu" aria-labelledby="recModeLabel">
+                <span class="cselect-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17 1 21 5l-4 4"/>
+                    <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+                    <path d="m7 23-4-4 4-4"/>
+                    <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+                  </svg>
+                </span>
+                <span class="cselect-label empty">请选择识别模式</span>
+                <span class="cselect-arrow" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m6 9 6 6 6-6"/>
+                  </svg>
+                </span>
+              </button>
+              <ul class="cselect-menu" id="recModeMenu" role="listbox" aria-labelledby="recModeLabel"></ul>
+            </div>
           </div>
-        </div>
-        <div class="field">
-          <label id="engineLabel" for="engineTrigger">语音引擎</label>
-          <div class="cselect" id="engine">
-            <button class="cselect-trigger" id="engineTrigger" type="button"
-                    aria-haspopup="listbox" aria-expanded="false" aria-controls="engineMenu" aria-labelledby="engineLabel">
-              <span class="cselect-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-                  <path d="M19 10v1a7 7 0 0 1-14 0v-1"/>
-                  <line x1="12" y1="18" x2="12" y2="22"/>
-                  <line x1="8" y1="22" x2="16" y2="22"/>
-                </svg>
-              </span>
-              <span class="cselect-label empty">检测可用引擎…</span>
-              <span class="cselect-arrow" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="m6 9 6 6 6-6"/>
-                </svg>
-              </span>
-            </button>
-            <ul class="cselect-menu" id="engineMenu" role="listbox" aria-labelledby="engineLabel"></ul>
+          <div class="field">
+            <label id="engineLabel" for="engineTrigger">语音引擎</label>
+            <div class="cselect" id="engine">
+              <button class="cselect-trigger" id="engineTrigger" type="button"
+                      aria-haspopup="listbox" aria-expanded="false" aria-controls="engineMenu" aria-labelledby="engineLabel">
+                <span class="cselect-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+                    <path d="M19 10v1a7 7 0 0 1-14 0v-1"/>
+                    <line x1="12" y1="18" x2="12" y2="22"/>
+                    <line x1="8" y1="22" x2="16" y2="22"/>
+                  </svg>
+                </span>
+                <span class="cselect-label empty">检测可用引擎…</span>
+                <span class="cselect-arrow" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m6 9 6 6 6-6"/>
+                  </svg>
+                </span>
+              </button>
+              <ul class="cselect-menu" id="engineMenu" role="listbox" aria-labelledby="engineLabel"></ul>
+            </div>
           </div>
         </div>
       </div>
@@ -735,6 +740,9 @@
       <div id="status" class="status idle" role="status" aria-live="polite">已就绪，可以开始录入</div>
 
       <div id="lastRecord" class="status ok hidden" role="status" aria-live="polite"></div>
+
+      <div class="context-title history-title">修改历史</div>
+      <div id="history" role="log" aria-label="修改历史"></div>
 
       <div class="tips">
         <span>按「空格」开始 / 结束语音录入</span>
@@ -1008,6 +1016,7 @@ async function init() {
   renderSheetTitle();
   render();
   loadEngines();   // 语音引擎下拉不阻塞表格渲染
+  loadHistory();   // 历史记录同样不阻塞
 }
 
 // 切换班级时只重载学生，不动列
@@ -1212,6 +1221,40 @@ function renderLastRecord(d) {
     expr: d.expr,
     grade: d.grade
   });
+  appendHistory(d);
+}
+
+// 历史记录：每写入一条追加一行，并同步到后端 history.txt；刷新后从后端恢复
+function historyText(d) {
+  return `${d.seq}号 ${d.name}「${currentCol}」 ` +
+    (d.expr === "直接设定" ? "直接设定 " : `${d.expr} = `) + d.score +
+    (d.grade ? `  ${d.grade}` : "");
+}
+
+function addHistoryRow(text) {
+  const box = document.getElementById("history");
+  if (!box) return;
+  const row = document.createElement("div");
+  row.textContent = text;
+  box.prepend(row);          // 最新的在最上面
+  box.scrollTop = 0;
+}
+
+function appendHistory(d) {
+  const text = historyText(d);
+  addHistoryRow(text);
+  fetch("/api/history", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({text})
+  }).catch(() => {});   // 落盘失败不影响录入
+}
+
+async function loadHistory() {
+  try {
+    const r = await fetch("/api/history");
+    const d = await r.json();
+    (d.lines || []).forEach(addHistoryRow);   // addHistoryRow 已倒序插入，最新的在最上面
+  } catch (e) { /* 历史加载失败不影响录入 */ }
 }
 
 // ---------- 语音识别（FunASR WebSocket 流式） ----------

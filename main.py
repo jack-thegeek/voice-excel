@@ -46,6 +46,7 @@ def _app_dir() -> str:
 
 
 DEBUG_LOG = os.path.join(_app_dir(), "debug.log")
+HISTORY_FILE = os.path.join(_app_dir(), "history.txt")   # 录入历史，一行一条
 
 app = FastAPI(title="语音修改 Excel 成绩表")
 
@@ -228,6 +229,32 @@ def api_apply(req: ApplyReq):
     except excel_editor.ExcelError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"ok": True, "student": _student_to_dict(stu)}
+
+
+class HistoryReq(BaseModel):
+    text: str
+
+
+@app.get("/api/history")
+def api_history():
+    """最近的录入历史（history.txt 最后 200 条）。"""
+    try:
+        with open(HISTORY_FILE, encoding="utf-8") as f:
+            lines = [ln for ln in (l.rstrip("\n") for l in f) if ln.strip()]
+    except FileNotFoundError:
+        lines = []
+    return {"lines": lines[-200:]}
+
+
+@app.post("/api/history")
+def api_history_add(req: HistoryReq):
+    """追加一条录入历史。文件只追加不裁剪，长期使用需手动清理。"""
+    line = req.text.replace("\r", " ").replace("\n", " ").strip()  # 一行一条
+    if not line:
+        raise HTTPException(status_code=400, detail="历史内容为空")
+    with open(HISTORY_FILE, "a", encoding="utf-8") as f:
+        f.write(line[:200] + "\n")
+    return {"ok": True}
 
 
 def _student_to_dict(s) -> dict[str, Any]:

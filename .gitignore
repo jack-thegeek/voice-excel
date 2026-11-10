@@ -7,6 +7,7 @@ __pycache__/
 # 真实成绩数据（含学生隐私，不入库）
 成绩表.xlsx
 成绩表.xlsx.bak
+history.txt
 
 # 含硬编码 API Key 的探测脚本，不入库
 test_audio_input.py
@@ -32,6 +33,7 @@ dist/
 
 # Agent 工具配置与 skills（本地目录，不入库）
 .opencode/
+.codegraph/
 
 # 运行时调试日志
 debug.log

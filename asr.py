@@ -27,7 +27,7 @@ import numpy as np
 
 # 引擎标识（前端下拉与 WebSocket 都用它做路由）
 ENGINE_ID = "funasr"
-ENGINE_NAME = "FunASR（Paraformer 大模型，精度高）"
+ENGINE_NAME = "FunASR"
 
 # 流式配置（来自 FunASR 官方示例）
 SAMPLE_RATE = 16000

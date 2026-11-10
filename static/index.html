@@ -135,6 +135,11 @@
     grid-template-columns: 1fr;
     gap: 12px;
   }
+  .field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
   .field { display: flex; flex-direction: column; gap: 5px; }
   .field label {
     font-size: 12.5px;
@@ -273,13 +278,6 @@
   }
   .cselect-check svg { display: block; width: 100%; height: 100%; }
   .cselect-option.selected .cselect-check { opacity: 1; }
-
-  /* ---------- 字段提示（识别模式等） ---------- */
-  .field-hint {
-    font-size: 12px;
-    color: var(--muted);
-    line-height: 1.4;
-  }
 
   /* ---------- 按钮 ---------- */
   button {
@@ -585,6 +583,7 @@
   @media (max-width: 480px) {
     .layout { padding: 8px; }
     .card { padding: 12px; }
+    .field-row { grid-template-columns: 1fr; }
     .input-row { flex-direction: column; align-items: stretch; }
     .input-row .btn-pri { width: 100%; }
     table { font-size: 12px; }
@@ -604,49 +603,51 @@
         <h2 class="card-title">录入设置</h2>
       </div>
       <div class="field-grid">
-        <div class="field">
-          <label id="sheetLabel" for="sheetTrigger">班级</label>
-          <div class="cselect" id="sheet">
-            <button class="cselect-trigger" id="sheetTrigger" type="button"
-                    aria-haspopup="listbox" aria-expanded="false" aria-controls="sheetMenu" aria-labelledby="sheetLabel">
-              <span class="cselect-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
-                  <circle cx="9" cy="7" r="4"/>
-                  <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                </svg>
-              </span>
-              <span class="cselect-label empty">请选择班级</span>
-              <span class="cselect-arrow" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="m6 9 6 6 6-6"/>
-                </svg>
-              </span>
-            </button>
-            <ul class="cselect-menu" id="sheetMenu" role="listbox" aria-labelledby="sheetLabel"></ul>
+        <div class="field-row">
+          <div class="field">
+            <label id="sheetLabel" for="sheetTrigger">班级</label>
+            <div class="cselect" id="sheet">
+              <button class="cselect-trigger" id="sheetTrigger" type="button"
+                      aria-haspopup="listbox" aria-expanded="false" aria-controls="sheetMenu" aria-labelledby="sheetLabel">
+                <span class="cselect-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                  </svg>
+                </span>
+                <span class="cselect-label empty">请选择班级</span>
+                <span class="cselect-arrow" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m6 9 6 6 6-6"/>
+                  </svg>
+                </span>
+              </button>
+              <ul class="cselect-menu" id="sheetMenu" role="listbox" aria-labelledby="sheetLabel"></ul>
+            </div>
           </div>
-        </div>
-        <div class="field">
-          <label id="colLabel" for="colTrigger">成绩列</label>
-          <div class="cselect" id="col">
-            <button class="cselect-trigger" id="colTrigger" type="button"
-                    aria-haspopup="listbox" aria-expanded="false" aria-controls="colMenu" aria-labelledby="colLabel">
-              <span class="cselect-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <ellipse cx="12" cy="5" rx="9" ry="3"/>
-                  <path d="M3 5v14a9 3 0 0 0 18 0V5"/>
-                  <path d="M3 12h18"/>
-                </svg>
-              </span>
-              <span class="cselect-label empty">请选择成绩列</span>
-              <span class="cselect-arrow" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="m6 9 6 6 6-6"/>
-                </svg>
-              </span>
-            </button>
-            <ul class="cselect-menu" id="colMenu" role="listbox" aria-labelledby="colLabel"></ul>
+          <div class="field">
+            <label id="colLabel" for="colTrigger">成绩列</label>
+            <div class="cselect" id="col">
+              <button class="cselect-trigger" id="colTrigger" type="button"
+                      aria-haspopup="listbox" aria-expanded="false" aria-controls="colMenu" aria-labelledby="colLabel">
+                <span class="cselect-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <ellipse cx="12" cy="5" rx="9" ry="3"/>
+                    <path d="M3 5v14a9 3 0 0 0 18 0V5"/>
+                    <path d="M3 12h18"/>
+                  </svg>
+                </span>
+                <span class="cselect-label empty">请选择成绩列</span>
+                <span class="cselect-arrow" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m6 9 6 6 6-6"/>
+                  </svg>
+                </span>
+              </button>
+              <ul class="cselect-menu" id="colMenu" role="listbox" aria-labelledby="colLabel"></ul>
+            </div>
           </div>
         </div>
         <div class="field">
@@ -671,7 +672,6 @@
             </button>
             <ul class="cselect-menu" id="recModeMenu" role="listbox" aria-labelledby="recModeLabel"></ul>
           </div>
-          <span class="field-hint">连续识别：写入后自动继续聆听，无需重复点击录音按钮</span>
         </div>
         <div class="field">
           <label id="engineLabel" for="engineTrigger">语音引擎</label>
@@ -695,7 +695,6 @@
             </button>
             <ul class="cselect-menu" id="engineMenu" role="listbox" aria-labelledby="engineLabel"></ul>
           </div>
-          <span class="field-hint">FunASR 精度高、占内存大；sherpa-onnx 轻量快速。切换后从下一次录音开始生效</span>
         </div>
       </div>
 

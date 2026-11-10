@@ -83,7 +83,7 @@
   body { overflow: hidden; }
   .layout {
     display: grid;
-    grid-template-columns: 400px 1fr;
+    grid-template-columns: 400px minmax(0, 1fr);
     gap: 12px;
     align-items: stretch;
     max-width: 1320px;
@@ -300,6 +300,7 @@
     font-size: 13px;
   }
   .btn-pri:hover { background: var(--primary-hover); }
+  .btn-save { height: 30px; padding: 0 12px; font-size: 12.5px; }
 
   /* 录音按钮 */
   .btn-rec {
@@ -535,6 +536,9 @@
   tbody tr:nth-child(even) td { background: #fafbfd; }
   tbody tr:hover td { background: #f1f5f9; }
   td.name { text-align: left; font-weight: 500; }
+  /* 手工编辑单元格 */
+  #tbody td[contenteditable] { cursor: text; }
+  #tbody td[contenteditable]:focus { outline: 2px solid var(--primary); outline-offset: -2px; background: #fff; }
 
   td.current-col, thead th.current-col {
     background: var(--primary-soft) !important;
@@ -758,6 +762,7 @@
     <section class="card">
       <div class="card-head">
         <h2 class="card-title" id="sheetTitle">成绩表</h2>
+        <button id="saveBtn" class="btn-pri btn-save hidden" type="button">保存修改</button>
       </div>
       <div class="scroller">
         <table id="tbl">
@@ -776,6 +781,7 @@
 <script>
 const COLS = [];   // 列名
 let students = [];
+const pendingEdits = new Map();   // 手工改过但未保存的单元格："序号|列名" -> 文本
 let currentCol = "第一单元";
 let currentSheet = "";
 let SHEETS = [];
@@ -1027,6 +1033,8 @@ async function loadStudents() {
     const d = await r.json();
     if (!r.ok) { setStatus("err", d.detail || "加载失败"); return; }
     students = d.students;
+    pendingEdits.clear();   // 换班级后序号对不上，未保存的编辑作废
+    document.getElementById("saveBtn").classList.add("hidden");
     render();
     setStatus("idle", "已就绪，可以开始录入");
   } catch(e) { setStatus("err", "网络错误：" + e.message); }
@@ -1047,9 +1055,11 @@ function render(highlightSeq) {
     if (s.seq === highlightSeq) tr.classList.add("hit");
     let html = `<td>${s.seq}</td><td class="name">${s.name}</td>`;
     COLS.forEach(c => {
-      const v = s.scores[c] ?? "";
+      const key = s.seq + "|" + c;
+      // 未保存的手工编辑优先显示，避免一次录音写入就把改动冲掉
+      const v = pendingEdits.has(key) ? pendingEdits.get(key) : (s.scores[c] ?? "");
       const cls = (c === currentCol) ? ' class="current-col"' : "";
-      html += `<td${cls}>${v}</td>`;
+      html += `<td${cls} contenteditable="true" data-seq="${s.seq}" data-col="${c}">${v}</td>`;
     });
     tr.innerHTML = html;
     tbody.appendChild(tr);
@@ -1061,6 +1071,60 @@ function render(highlightSeq) {
   }
   updateContext();
 }
+
+// ---------- 表格手工编辑 ----------
+// 输入即记录改动，右上角出现「保存修改」，点保存才写回 Excel
+document.getElementById("tbody").addEventListener("input", (e) => {
+  const td = e.target.closest("td[data-seq]");
+  if (!td) return;
+  pendingEdits.set(td.dataset.seq + "|" + td.dataset.col, td.textContent.trim());
+  document.getElementById("saveBtn").classList.remove("hidden");
+});
+// 单元格里回车结束编辑，避免录入多行
+document.getElementById("tbody").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && e.target.matches("td[contenteditable]")) {
+    e.preventDefault();
+    e.target.blur();
+  }
+});
+
+async function saveEdits() {
+  const btn = document.getElementById("saveBtn");
+  const items = [...pendingEdits];
+  if (!items.length) return;
+  btn.disabled = true;
+  setStatus("busy", `正在保存 ${items.length} 处修改…`);
+  const failed = [];
+  let ok = 0;
+  for (const [key, val] of items) {
+    const [seq, col] = key.split("|");
+    const score = Number(val);
+    if (!val || !Number.isFinite(score)) { failed.push(`${seq}号「${col}」不是有效分数`); continue; }
+    try {
+      const r = await fetch("/api/apply", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ seq: Number(seq), col_name: col, score, sheet_name: currentSheet })
+      });
+      const d = await r.json();
+      if (!r.ok) { failed.push(`${seq}号「${col}」：${d.detail || "保存失败"}`); continue; }
+      const i = students.findIndex(s => s.seq === Number(seq));
+      if (i >= 0) students[i] = d.student;
+      ok++;
+      // 手工修改同样记一条「直接设定」历史
+      const cur = d.student.scores[col];
+      appendHistory({ seq: Number(seq), name: d.student.name, col, expr: "直接设定",
+                      score: cur, grade: gradeOf(cur) });
+    } catch (e) { failed.push(`${seq}号「${col}」：网络错误`); }
+  }
+  pendingEdits.clear();
+  btn.disabled = false;
+  btn.classList.add("hidden");
+  render();
+  if (failed.length) setStatus("err", `已保存 ${ok} 处，${failed.length} 处失败：${failed[0]}`);
+  else setStatus("ok", `已保存 ${ok} 处修改`);
+}
+
+document.getElementById("saveBtn").addEventListener("click", saveEdits);
 
 // 更新左栏「当前录入」上下文卡：班级、成绩列、该列已录入进度
 function updateContext() {
@@ -1226,7 +1290,7 @@ function renderLastRecord(d) {
 
 // 历史记录：每写入一条追加一行，并同步到后端 history.txt；刷新后从后端恢复
 function historyText(d) {
-  return `${d.seq}号 ${d.name}「${currentCol}」 ` +
+  return `${d.seq}号 ${d.name}「${d.col || currentCol}」 ` +
     (d.expr === "直接设定" ? "直接设定 " : `${d.expr} = `) + d.score +
     (d.grade ? `  ${d.grade}` : "");
 }

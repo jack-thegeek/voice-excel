@@ -746,7 +746,7 @@
 
       <div class="tips">
         <span>按「空格」开始 / 结束语音录入</span>
-        <span>说「等于、等于几、等于多少」即自动结束并写入</span>
+        <span>说「等于、等于几、等于多少」或直接报「5号 100分」即自动结束并写入</span>
       </div>
 
       <div class="footer">自动保存到成绩表.xlsx</div>
@@ -1264,6 +1264,8 @@ let recognizing = false;
 // 收尾关键词：语音中出现其一即自动结束并写入
 // 说明：「等于」已覆盖「等于几/等于多少/等于啥」；其余为与 parser 同样支持的收尾说法
 const TRIGGERS = ["等于", "等于几", "等于多少", "等于啥", "得多少", "得几", "是多少", "是几"];
+// 直接报分数（如「5号 100分」）也视为收尾：数字紧跟「分」才算，避免日常词误触发
+const DIRECT_SCORE_RE = /\d+\s*分/;
 
 let wsCtx = null;          // AudioContext
 let wsStream = null;       // MediaStream
@@ -1385,7 +1387,7 @@ async function startAsr() {
       const inp = document.getElementById("textInput");
       inp.value = accumulated;
       normalizeHao(inp);
-      if (TRIGGERS.some(k => accumulated.includes(k))) {
+      if (TRIGGERS.some(k => accumulated.includes(k)) || DIRECT_SCORE_RE.test(accumulated)) {
         // 触发结束：更新提示并让后端 flush 识别尾部
         setStatus("busy", "正在识别最后内容…");
         try { asrWs.send(JSON.stringify({action:"stop"})); } catch(e) {}
